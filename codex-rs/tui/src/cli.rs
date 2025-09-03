@@ -45,6 +45,7 @@ pub struct Cli {
     #[arg(
         long = "dangerously-bypass-approvals-and-sandbox",
         alias = "yolo",
+        alias = "no-confirm",
         default_value_t = false,
         conflicts_with_all = ["approval_policy", "full_auto"]
     )]

@@ -48,7 +48,13 @@ pub fn assess_patch_safety(
     if is_write_patch_constrained_to_writable_paths(action, sandbox_policy, cwd)
         || policy == AskForApproval::OnFailure
     {
-        // Only auto‑approve when we can actually enforce a sandbox. Otherwise
+        if matches!(sandbox_policy, SandboxPolicy::DangerFullAccess) {
+            return SafetyCheck::AutoApprove {
+                sandbox_type: SandboxType::None,
+            };
+        }
+
+        // Only auto-approve when we can actually enforce a sandbox. Otherwise
         // fall back to asking the user because the patch may touch arbitrary
         // paths outside the project.
         match get_platform_sandbox() {
