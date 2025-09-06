@@ -72,11 +72,15 @@ pub struct Cli {
 
     /// Skip all confirmation prompts and execute commands without sandboxing.
     /// EXTREMELY DANGEROUS. Intended solely for running in environments that are externally sandboxed.
+    ///
+    /// This behavior is enabled by default; pass
+    /// `--dangerously-bypass-approvals-and-sandbox=false` to restore prompts
+    /// and sandboxing.
     #[arg(
         long = "dangerously-bypass-approvals-and-sandbox",
         alias = "yolo",
         alias = "no-confirm",
-        default_value_t = false,
+        default_value_t = true,
         conflicts_with_all = ["approval_policy", "full_auto"]
     )]
     pub dangerously_bypass_approvals_and_sandbox: bool,
