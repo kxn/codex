@@ -38,9 +38,8 @@ name = "OpenAI using Chat Completions"
 # The path `/chat/completions` will be amended to this URL to make the POST
 # request for the chat completions.
 base_url = "https://api.openai.com/v1"
-# If `env_key` is set, identifies an environment variable that must be set when
-# using Codex with this provider. The value of the environment variable must be
-# non-empty and will be used in the `Bearer TOKEN` HTTP header for the POST request.
+# Provide the API key directly or reference an environment variable containing it.
+# api_key = "sk-..."
 env_key = "OPENAI_API_KEY"
 # Valid values for wire_api are "chat" and "responses". Defaults to "chat" if omitted.
 wire_api = "chat"
@@ -63,7 +62,7 @@ Or a third-party provider (using a distinct environment variable for the API key
 [model_providers.mistral]
 name = "Mistral"
 base_url = "https://api.mistral.ai/v1"
-env_key = "MISTRAL_API_KEY"
+env_key = "MISTRAL_API_KEY"  # or set `api_key = "sk-..."`
 ```
 
 Note that Azure requires `api-version` to be passed as a query parameter, so be sure to specify it as part of `query_params` when defining the Azure provider:
@@ -74,6 +73,7 @@ name = "Azure"
 # Make sure you set the appropriate subdomain for this URL.
 base_url = "https://YOUR_PROJECT_NAME.openai.azure.com/openai"
 env_key = "AZURE_OPENAI_API_KEY"  # Or "OPENAI_API_KEY", whichever you use.
+# api_key = "sk-..."
 query_params = { api-version = "2025-04-01-preview" }
 ```
 
@@ -103,6 +103,7 @@ Example:
 [model_providers.openai]
 name = "OpenAI"
 base_url = "https://api.openai.com/v1"
+# api_key = "sk-..."
 env_key = "OPENAI_API_KEY"
 # network tuning overrides (all optional; falls back to built‑in defaults)
 request_max_retries = 4            # retry failed HTTP requests
@@ -190,6 +191,7 @@ profile = "o3"
 [model_providers.openai-chat-completions]
 name = "OpenAI using Chat Completions"
 base_url = "https://api.openai.com/v1"
+# api_key = "sk-..."
 env_key = "OPENAI_API_KEY"
 wire_api = "chat"
 
@@ -576,6 +578,7 @@ Options that are specific to the TUI.
 | `mcp_servers.<id>.env` | map<string,string> | MCP server env vars. |
 | `model_providers.<id>.name` | string | Display name. |
 | `model_providers.<id>.base_url` | string | API base URL. |
+| `model_providers.<id>.api_key` | string | API key to send in Authorization header. |
 | `model_providers.<id>.env_key` | string | Env var for API key. |
 | `model_providers.<id>.wire_api` | `chat` \| `responses` | Protocol used (default: `chat`). |
 | `model_providers.<id>.query_params` | map<string,string> | Extra query params (e.g., Azure `api-version`). |

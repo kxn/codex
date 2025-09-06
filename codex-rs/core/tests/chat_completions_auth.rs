@@ -58,6 +58,7 @@ async fn chat_includes_authorization_header_with_openai_api_key() {
     let provider = ModelProviderInfo {
         name: "mock".into(),
         base_url: Some(format!("{}/v1", server.uri())),
+        api_key: None,
         env_key: None,
         env_key_instructions: None,
         wire_api: WireApi::Chat,

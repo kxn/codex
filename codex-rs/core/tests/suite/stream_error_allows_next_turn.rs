@@ -71,6 +71,7 @@ async fn continue_after_stream_error() {
     let provider = ModelProviderInfo {
         name: "mock-openai".into(),
         base_url: Some(format!("{}/v1", server.uri())),
+        api_key: None,
         env_key: Some("PATH".into()),
         env_key_instructions: None,
         wire_api: WireApi::Responses,

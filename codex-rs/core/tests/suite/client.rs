@@ -746,6 +746,7 @@ async fn azure_overrides_assign_properties_used_for_responses_url() {
     let provider = ModelProviderInfo {
         name: "custom".to_string(),
         base_url: Some(format!("{}/openai", server.uri())),
+        api_key: None,
         // Reuse the existing environment variable to avoid using unsafe code
         env_key: Some(existing_env_var_with_random_value.to_string()),
         query_params: Some(std::collections::HashMap::from([(
@@ -822,6 +823,7 @@ async fn env_var_overrides_loaded_auth() {
     let provider = ModelProviderInfo {
         name: "custom".to_string(),
         base_url: Some(format!("{}/openai", server.uri())),
+        api_key: None,
         // Reuse the existing environment variable to avoid using unsafe code
         env_key: Some(existing_env_var_with_random_value.to_string()),
         query_params: Some(std::collections::HashMap::from([(

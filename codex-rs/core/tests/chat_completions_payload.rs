@@ -46,6 +46,7 @@ async fn run_request(input: Vec<ResponseItem>) -> Value {
     let provider = ModelProviderInfo {
         name: "mock".into(),
         base_url: Some(format!("{}/v1", server.uri())),
+        api_key: None,
         env_key: None,
         env_key_instructions: None,
         wire_api: WireApi::Chat,

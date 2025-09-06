@@ -687,13 +687,14 @@ impl Config {
         }
 
         if let Ok(wire_format) = env::var("OPENAI_WIRE_FORMAT")
-            && let Some(provider) = model_providers.get_mut("openai") {
-                provider.wire_api = match wire_format.to_lowercase().as_str() {
-                    "chat" => WireApi::Chat,
-                    "responses" => WireApi::Responses,
-                    _ => provider.wire_api,
-                };
-            }
+            && let Some(provider) = model_providers.get_mut("openai")
+        {
+            provider.wire_api = match wire_format.to_lowercase().as_str() {
+                "chat" => WireApi::Chat,
+                "responses" => WireApi::Responses,
+                _ => provider.wire_api,
+            };
+        }
 
         let model_provider_id = model_provider
             .or(config_profile.model_provider)
@@ -1124,6 +1125,7 @@ model_verbosity = "high"
         let openai_chat_completions_provider = ModelProviderInfo {
             name: "OpenAI using Chat Completions".to_string(),
             base_url: Some("https://api.openai.com/v1".to_string()),
+            api_key: None,
             env_key: Some("OPENAI_API_KEY".to_string()),
             wire_api: crate::WireApi::Chat,
             env_key_instructions: None,

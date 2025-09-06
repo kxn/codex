@@ -785,6 +785,7 @@ mod tests {
         let provider = ModelProviderInfo {
             name: "test".to_string(),
             base_url: Some("https://test.com".to_string()),
+            api_key: None,
             env_key: Some("TEST_API_KEY".to_string()),
             env_key_instructions: None,
             wire_api: WireApi::Responses,
@@ -845,6 +846,7 @@ mod tests {
         let provider = ModelProviderInfo {
             name: "test".to_string(),
             base_url: Some("https://test.com".to_string()),
+            api_key: None,
             env_key: Some("TEST_API_KEY".to_string()),
             env_key_instructions: None,
             wire_api: WireApi::Responses,
@@ -879,6 +881,7 @@ mod tests {
         let provider = ModelProviderInfo {
             name: "test".to_string(),
             base_url: Some("https://test.com".to_string()),
+            api_key: None,
             env_key: Some("TEST_API_KEY".to_string()),
             env_key_instructions: None,
             wire_api: WireApi::Responses,
@@ -984,6 +987,7 @@ mod tests {
             let provider = ModelProviderInfo {
                 name: "test".to_string(),
                 base_url: Some("https://test.com".to_string()),
+                api_key: None,
                 env_key: Some("TEST_API_KEY".to_string()),
                 env_key_instructions: None,
                 wire_api: WireApi::Responses,
