@@ -234,20 +234,20 @@ fn load_auth(
     preferred_auth_method: AuthMode,
     originator: &str,
 ) -> std::io::Result<Option<CodexAuth>> {
-    // First, check to see if there is a valid auth.json file. If not, we fall
-    // back to AuthMode::ApiKey using the OPENAI_API_KEY environment variable
-    // (if it is set).
-    let auth_file = get_auth_file(codex_home);
     let client = crate::default_client::create_client(originator);
+
+    // If the OPENAI_API_KEY environment variable is set, always use it and
+    // prefer AuthMode::ApiKey regardless of auth.json or config.
+    if include_env_var && let Some(api_key) = read_openai_api_key_from_env() {
+        return Ok(Some(CodexAuth::from_api_key_with_client(&api_key, client)));
+    }
+
+    let auth_file = get_auth_file(codex_home);
+    // If auth.json does not exist, fall back to `None`.
     let auth_dot_json = match try_read_auth_json(&auth_file) {
         Ok(auth) => auth,
-        // If auth.json does not exist, try to read the OPENAI_API_KEY from the
-        // environment variable.
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound && include_env_var => {
-            return match read_openai_api_key_from_env() {
-                Some(api_key) => Ok(Some(CodexAuth::from_api_key_with_client(&api_key, client))),
-                None => Ok(None),
-            };
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(None);
         }
         // Though if auth.json exists but is malformed, do not fall back to the
         // env var because the user may be expecting to use AuthMode::ChatGPT.
@@ -605,6 +605,34 @@ mod tests {
         assert!(auth.get_token_data().await.is_err());
     }
 
+    #[tokio::test]
+    async fn env_var_overrides_auth_json() {
+        let codex_home = tempdir().unwrap();
+        write_auth_file(
+            AuthFileParams {
+                openai_api_key: Some("sk-auth-json".to_string()),
+                chatgpt_plan_type: "pro".to_string(),
+            },
+            codex_home.path(),
+        )
+        .expect("failed to write auth file");
+
+        unsafe {
+            std::env::set_var(OPENAI_API_KEY_ENV_VAR, "sk-env");
+        }
+        let auth = super::load_auth(codex_home.path(), true, AuthMode::ChatGPT, "codex_cli_rs")
+            .unwrap()
+            .unwrap();
+        unsafe {
+            std::env::remove_var(OPENAI_API_KEY_ENV_VAR);
+        }
+
+        assert_eq!(auth.api_key, Some("sk-env".to_string()));
+        assert_eq!(auth.mode, AuthMode::ApiKey);
+        let guard = auth.auth_dot_json.lock().unwrap();
+        assert!(guard.is_none());
+    }
+
     #[test]
     fn logout_removes_auth_file() -> Result<(), std::io::Error> {
         let dir = tempdir()?;
@@ -690,6 +718,12 @@ impl AuthManager {
     /// simply return `None` in that case so callers can treat it as an
     /// unauthenticated state.
     pub fn new(codex_home: PathBuf, preferred_auth_mode: AuthMode, originator: String) -> Self {
+        let preferred_auth_mode = if read_openai_api_key_from_env().is_some() {
+            AuthMode::ApiKey
+        } else {
+            preferred_auth_mode
+        };
+
         let auth = CodexAuth::from_codex_home(&codex_home, preferred_auth_mode, &originator)
             .ok()
             .flatten();
