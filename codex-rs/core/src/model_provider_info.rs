@@ -256,7 +256,14 @@ pub fn built_in_model_providers() -> HashMap<String, ModelProviderInfo> {
                     .filter(|v| !v.trim().is_empty()),
                 env_key: None,
                 env_key_instructions: None,
-                wire_api: WireApi::Responses,
+                wire_api: std::env::var("OPENAI_WIRE_FORMAT")
+                    .ok()
+                    .and_then(|v| match v.to_lowercase().as_str() {
+                        "chat" => Some(WireApi::Chat),
+                        "responses" => Some(WireApi::Responses),
+                        _ => None,
+                    })
+                    .unwrap_or(WireApi::Responses),
                 query_params: None,
                 http_headers: Some(
                     [("version".to_string(), env!("CARGO_PKG_VERSION").to_string())]
@@ -416,4 +423,5 @@ env_http_headers = { "X-Example-Env-Header" = "EXAMPLE_ENV_VAR" }
         let provider: ModelProviderInfo = toml::from_str(azure_provider_toml).unwrap();
         assert_eq!(expected_provider, provider);
     }
+
 }
