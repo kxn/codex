@@ -64,13 +64,17 @@ mkdir -p "$BIN_DIR"
 # Download and decompress the artifacts from the GitHub Actions workflow.
 # ----------------------------------------------------------------------------
 
-WORKFLOW_ID="${WORKFLOW_URL##*/}"
+# Extract repository (owner/name) and run ID from the workflow URL so that
+# forks can fetch their own artifacts instead of always using openai/codex.
+WORKFLOW_PATH="${WORKFLOW_URL#https://github.com/}"
+REPO="${WORKFLOW_PATH%%/actions/runs/*}"
+WORKFLOW_ID="${WORKFLOW_PATH##*/}"
 
 ARTIFACTS_DIR="$(mktemp -d)"
 trap 'rm -rf "$ARTIFACTS_DIR"' EXIT
 
 # NB: The GitHub CLI `gh` must be installed and authenticated.
-gh run download --dir "$ARTIFACTS_DIR" --repo openai/codex "$WORKFLOW_ID"
+gh run download --dir "$ARTIFACTS_DIR" --repo "$REPO" "$WORKFLOW_ID"
 
 # x64 Linux
 zstd -d "$ARTIFACTS_DIR/x86_64-unknown-linux-musl/codex-x86_64-unknown-linux-musl.zst" \
