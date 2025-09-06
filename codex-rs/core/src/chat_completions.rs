@@ -15,6 +15,7 @@ use tokio::time::timeout;
 use tracing::debug;
 use tracing::trace;
 
+use crate::CodexAuth;
 use crate::ModelProviderInfo;
 use crate::client_common::Prompt;
 use crate::client_common::ResponseEvent;
@@ -34,6 +35,7 @@ pub(crate) async fn stream_chat_completions(
     model_family: &ModelFamily,
     client: &reqwest::Client,
     provider: &ModelProviderInfo,
+    auth: &Option<CodexAuth>,
 ) -> Result<ResponseStream> {
     // Build messages array
     let mut messages = Vec::<serde_json::Value>::new();
@@ -277,7 +279,7 @@ pub(crate) async fn stream_chat_completions(
 
     debug!(
         "POST to {}: {}",
-        provider.get_full_url(&None),
+        provider.get_full_url(auth),
         serde_json::to_string_pretty(&payload).unwrap_or_default()
     );
 
@@ -286,7 +288,7 @@ pub(crate) async fn stream_chat_completions(
     loop {
         attempt += 1;
 
-        let req_builder = provider.create_request_builder(client, &None).await?;
+        let req_builder = provider.create_request_builder(client, auth).await?;
 
         let res = req_builder
             .header(reqwest::header::ACCEPT, "text/event-stream")
