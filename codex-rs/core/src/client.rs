@@ -110,12 +110,15 @@ impl ModelClient {
         match self.provider.wire_api {
             WireApi::Responses => self.stream_responses(prompt).await,
             WireApi::Chat => {
+                let auth = self.auth_manager.as_ref().and_then(|m| m.auth());
+
                 // Create the raw streaming connection first.
                 let response_stream = stream_chat_completions(
                     prompt,
                     &self.config.model_family,
                     &self.client,
                     &self.provider,
+                    &auth,
                 )
                 .await?;
 
