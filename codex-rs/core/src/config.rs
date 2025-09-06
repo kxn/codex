@@ -1,3 +1,4 @@
+use crate::auth::OPENAI_API_KEY_ENV_VAR;
 use crate::config_profile::ConfigProfile;
 use crate::config_types::History;
 use crate::config_types::McpServerConfig;
@@ -25,6 +26,7 @@ use codex_protocol::mcp_protocol::UserSavedConfig;
 use dirs::home_dir;
 use serde::Deserialize;
 use std::collections::HashMap;
+use std::env;
 use std::path::Path;
 use std::path::PathBuf;
 use tempfile::NamedTempFile;
@@ -777,7 +779,7 @@ impl Config {
             .responses_originator_header_internal_override
             .unwrap_or(DEFAULT_RESPONSES_ORIGINATOR_HEADER.to_owned());
 
-        let config = Self {
+        let mut config = Self {
             model,
             model_family,
             model_context_window,
@@ -834,6 +836,9 @@ impl Config {
             include_view_image_tool,
             disable_paste_burst: cfg.disable_paste_burst.unwrap_or(false),
         };
+        if env::var(OPENAI_API_KEY_ENV_VAR).is_ok() {
+            config.preferred_auth_method = AuthMode::ApiKey;
+        }
         Ok(config)
     }
 
