@@ -46,6 +46,9 @@ pub struct ModelProviderInfo {
     pub name: String,
     /// Base URL for the provider's OpenAI-compatible API.
     pub base_url: Option<String>,
+    /// API key used for this provider. If set and non-empty, this key will be
+    /// injected into the `Authorization: Bearer` header. Overrides `env_key`.
+    pub api_key: Option<String>,
     /// Environment variable that stores the user's API key for this provider.
     pub env_key: Option<String>,
 
@@ -182,9 +185,17 @@ impl ModelProviderInfo {
     }
 
     /// If `env_key` is Some, returns the API key for this provider if present
-    /// (and non-empty) in the environment. If `env_key` is required but
-    /// cannot be found, returns an error.
+    /// (and non-empty) either inline via `api_key` or in the environment via
+    /// `env_key`. If both are specified, `api_key` takes precedence. If `env_key`
+    /// is required but cannot be found, returns an error.
     pub fn api_key(&self) -> crate::error::Result<Option<String>> {
+        if let Some(key) = self.api_key.as_ref() {
+            if key.trim().is_empty() {
+                return Ok(None);
+            }
+            return Ok(Some(key.clone()));
+        }
+
         match &self.env_key {
             Some(env_key) => {
                 let env_value = std::env::var(env_key);
@@ -254,6 +265,7 @@ pub fn built_in_model_providers() -> HashMap<String, ModelProviderInfo> {
                 base_url: std::env::var("OPENAI_BASE_URL")
                     .ok()
                     .filter(|v| !v.trim().is_empty()),
+                api_key: None,
                 env_key: None,
                 env_key_instructions: None,
                 wire_api: std::env::var("OPENAI_WIRE_FORMAT")
@@ -320,6 +332,7 @@ pub fn create_oss_provider_with_base_url(base_url: &str) -> ModelProviderInfo {
     ModelProviderInfo {
         name: "gpt-oss".into(),
         base_url: Some(base_url.into()),
+        api_key: None,
         env_key: None,
         env_key_instructions: None,
         wire_api: WireApi::Chat,
@@ -347,6 +360,7 @@ base_url = "http://localhost:11434/v1"
         let expected_provider = ModelProviderInfo {
             name: "Ollama".into(),
             base_url: Some("http://localhost:11434/v1".into()),
+            api_key: None,
             env_key: None,
             env_key_instructions: None,
             wire_api: WireApi::Chat,
@@ -374,6 +388,7 @@ query_params = { api-version = "2025-04-01-preview" }
         let expected_provider = ModelProviderInfo {
             name: "Azure".into(),
             base_url: Some("https://xxxxx.openai.azure.com/openai".into()),
+            api_key: None,
             env_key: Some("AZURE_OPENAI_API_KEY".into()),
             env_key_instructions: None,
             wire_api: WireApi::Chat,
@@ -404,6 +419,7 @@ env_http_headers = { "X-Example-Env-Header" = "EXAMPLE_ENV_VAR" }
         let expected_provider = ModelProviderInfo {
             name: "Example".into(),
             base_url: Some("https://example.com".into()),
+            api_key: None,
             env_key: Some("API_KEY".into()),
             env_key_instructions: None,
             wire_api: WireApi::Chat,
@@ -423,5 +439,4 @@ env_http_headers = { "X-Example-Env-Header" = "EXAMPLE_ENV_VAR" }
         let provider: ModelProviderInfo = toml::from_str(azure_provider_toml).unwrap();
         assert_eq!(expected_provider, provider);
     }
-
 }
