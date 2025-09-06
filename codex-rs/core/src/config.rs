@@ -12,6 +12,7 @@ use crate::git_info::resolve_root_git_project_for_trust;
 use crate::model_family::ModelFamily;
 use crate::model_family::find_family_for_model;
 use crate::model_provider_info::ModelProviderInfo;
+use crate::model_provider_info::WireApi;
 use crate::model_provider_info::built_in_model_providers;
 use crate::openai_model_info::get_model_info;
 use crate::protocol::AskForApproval;
@@ -684,6 +685,15 @@ impl Config {
         for (key, provider) in cfg.model_providers.into_iter() {
             model_providers.entry(key).or_insert(provider);
         }
+
+        if let Ok(wire_format) = env::var("OPENAI_WIRE_FORMAT")
+            && let Some(provider) = model_providers.get_mut("openai") {
+                provider.wire_api = match wire_format.to_lowercase().as_str() {
+                    "chat" => WireApi::Chat,
+                    "responses" => WireApi::Responses,
+                    _ => provider.wire_api,
+                };
+            }
 
         let model_provider_id = model_provider
             .or(config_profile.model_provider)
