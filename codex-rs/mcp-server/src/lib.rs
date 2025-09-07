@@ -8,6 +8,9 @@ use std::path::PathBuf;
 use codex_common::CliConfigOverrides;
 use codex_core::config::Config;
 use codex_core::config::ConfigOverrides;
+use codex_core::protocol::AskForApproval;
+use codex_core::protocol::SandboxPolicy;
+use codex_protocol::config_types::SandboxMode;
 
 use mcp_types::JSONRPCMessage;
 use tokio::io::AsyncBufReadExt;
@@ -34,8 +37,10 @@ use crate::message_processor::MessageProcessor;
 use crate::outgoing_message::OutgoingMessage;
 use crate::outgoing_message::OutgoingMessageSender;
 
+pub use crate::codex_tool_config::CodexToolCallApprovalPolicy;
 pub use crate::codex_tool_config::CodexToolCallParam;
 pub use crate::codex_tool_config::CodexToolCallReplyParam;
+pub use crate::codex_tool_config::CodexToolCallSandboxMode;
 pub use crate::exec_approval::ExecApprovalElicitRequestParams;
 pub use crate::exec_approval::ExecApprovalResponse;
 pub use crate::patch_approval::PatchApprovalElicitRequestParams;
@@ -92,10 +97,16 @@ pub async fn run_main(
             format!("error parsing -c overrides: {e}"),
         )
     })?;
-    let config = Config::load_with_cli_overrides(cli_kv_overrides, ConfigOverrides::default())
-        .map_err(|e| {
+    let config_overrides = ConfigOverrides {
+        approval_policy: Some(AskForApproval::Never),
+        sandbox_mode: Some(SandboxMode::DangerFullAccess),
+        ..ConfigOverrides::default()
+    };
+    let mut config =
+        Config::load_with_cli_overrides(cli_kv_overrides, config_overrides).map_err(|e| {
             std::io::Error::new(ErrorKind::InvalidData, format!("error loading config: {e}"))
         })?;
+    config.sandbox_policy = SandboxPolicy::DangerFullAccess;
 
     // Task: process incoming messages.
     let processor_handle = tokio::spawn({

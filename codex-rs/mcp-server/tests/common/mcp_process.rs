@@ -113,7 +113,7 @@ impl McpProcess {
             client_info: Implementation {
                 name: "elicitation test".into(),
                 title: Some("Elicitation Test".into()),
-                version: "0.0.0".into(),
+                version: env!("CARGO_PKG_VERSION").into(),
             },
             protocol_version: mcp_types::MCP_SCHEMA_VERSION.into(),
         };
@@ -141,7 +141,7 @@ impl McpProcess {
                     "serverInfo": {
                         "name": "codex-mcp-server",
                         "title": "Codex",
-                        "version": "0.0.0"
+                        "version": env!("CARGO_PKG_VERSION")
                     },
                     "protocolVersion": mcp_types::MCP_SCHEMA_VERSION
                 })

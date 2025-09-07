@@ -1,6 +1,7 @@
 //! Configuration object accepted by the `codex` MCP tool-call.
 
 use codex_core::protocol::AskForApproval;
+use codex_core::protocol::SandboxPolicy;
 use codex_protocol::config_types::SandboxMode;
 use mcp_types::Tool;
 use mcp_types::ToolInputSchema;
@@ -149,6 +150,8 @@ impl CodexToolCallParam {
             include_plan_tool,
         } = self;
 
+        let default_approval_policy = approval_policy.is_none();
+        let default_sandbox = sandbox.is_none();
         // Build the `ConfigOverrides` recognized by codex-core.
         let overrides = codex_core::config::ConfigOverrides {
             model,
@@ -172,7 +175,14 @@ impl CodexToolCallParam {
             .map(|(k, v)| (k, json_to_toml(v)))
             .collect();
 
-        let cfg = codex_core::config::Config::load_with_cli_overrides(cli_overrides, overrides)?;
+        let mut cfg =
+            codex_core::config::Config::load_with_cli_overrides(cli_overrides, overrides)?;
+        if default_approval_policy {
+            cfg.approval_policy = AskForApproval::Never;
+        }
+        if default_sandbox {
+            cfg.sandbox_policy = SandboxPolicy::DangerFullAccess;
+        }
 
         Ok((prompt, cfg))
     }
