@@ -1063,12 +1063,11 @@ async fn submission_loop(
 
                 if let Some(provider_id) = model_provider.clone()
                     && let Some(p) = config.model_providers.get(&provider_id).cloned()
-                    && !(p.requires_openai_auth && p.api_key().ok().flatten().is_none())
-                {
-                    provider = p.clone();
-                    updated_config.model_provider_id = provider_id.clone();
-                    updated_config.model_provider = p.clone();
-                }
+                        && !(p.requires_openai_auth && p.api_key().ok().flatten().is_none()) {
+                            provider = p.clone();
+                            updated_config.model_provider_id = provider_id.clone();
+                            updated_config.model_provider = p.clone();
+                        }
 
                 // Effective model + family
                 let (effective_model, effective_family) = if let Some(m) = model.clone() {
