@@ -1170,50 +1170,99 @@ impl ChatWidget {
     pub(crate) fn open_model_popup(&mut self) {
         let current_model = self.config.model.clone();
         let current_effort = self.config.model_reasoning_effort;
-        let presets: &[ModelPreset] = builtin_model_presets();
-
         let mut items: Vec<SelectionItem> = Vec::new();
-        for preset in presets.iter() {
-            let name = preset.label.to_string();
-            let description = Some(preset.description.to_string());
-            let is_current = preset.model == current_model && preset.effort == current_effort;
-            let model_slug = preset.model.to_string();
-            let effort = preset.effort;
-            let current_model = current_model.clone();
-            let actions: Vec<SelectionAction> = vec![Box::new(move |tx| {
-                tx.send(AppEvent::CodexOp(Op::OverrideTurnContext {
-                    cwd: None,
-                    approval_policy: None,
-                    sandbox_policy: None,
-                    model_provider: None,
-                    model: Some(model_slug.clone()),
-                    effort: Some(effort),
-                    summary: None,
-                }));
-                tx.send(AppEvent::UpdateModel(model_slug.clone()));
-                tx.send(AppEvent::UpdateReasoningEffort(effort));
-                tracing::info!(
-                    "New model: {}, New effort: {}, Current model: {}, Current effort: {}",
-                    model_slug.clone(),
-                    effort,
-                    current_model,
-                    current_effort
-                );
-            })];
-            items.push(SelectionItem {
-                name,
-                description,
-                is_current,
-                actions,
-            });
-        }
 
-        self.bottom_pane.show_selection_view(
-            "Select model and reasoning level".to_string(),
-            Some("Switch between OpenAI models for this and future Codex CLI session".to_string()),
-            Some("Press Enter to confirm or Esc to go back".to_string()),
-            items,
-        );
+        if self.config.model_provider_id == "openai" {
+            let presets: &[ModelPreset] = builtin_model_presets();
+            for preset in presets.iter() {
+                let name = preset.label.to_string();
+                let description = Some(preset.description.to_string());
+                let is_current = preset.model == current_model && preset.effort == current_effort;
+                let model_slug = preset.model.to_string();
+                let effort = preset.effort;
+                let current_model = current_model.clone();
+                let actions: Vec<SelectionAction> = vec![Box::new(move |tx| {
+                    tx.send(AppEvent::CodexOp(Op::OverrideTurnContext {
+                        cwd: None,
+                        approval_policy: None,
+                        sandbox_policy: None,
+                        model_provider: None,
+                        model: Some(model_slug.clone()),
+                        effort: Some(effort),
+                        summary: None,
+                    }));
+                    tx.send(AppEvent::UpdateModel(model_slug.clone()));
+                    tx.send(AppEvent::UpdateReasoningEffort(effort));
+                    tracing::info!(
+                        "New model: {}, New effort: {}, Current model: {}, Current effort: {}",
+                        model_slug.clone(),
+                        effort,
+                        current_model,
+                        current_effort
+                    );
+                })];
+                items.push(SelectionItem {
+                    name,
+                    description,
+                    is_current,
+                    actions,
+                });
+            }
+
+            self.bottom_pane.show_selection_view(
+                "Select model and reasoning level".to_string(),
+                Some(
+                    "Switch between OpenAI models for this and future Codex CLI session"
+                        .to_string(),
+                ),
+                Some("Press Enter to confirm or Esc to go back".to_string()),
+                items,
+            );
+        } else {
+            let model_slug = current_model.clone();
+            for effort in [
+                ReasoningEffortConfig::Minimal,
+                ReasoningEffortConfig::Low,
+                ReasoningEffortConfig::Medium,
+                ReasoningEffortConfig::High,
+            ] {
+                let effort_label = match effort {
+                    ReasoningEffortConfig::Minimal => "minimal",
+                    ReasoningEffortConfig::Low => "low",
+                    ReasoningEffortConfig::Medium => "medium",
+                    ReasoningEffortConfig::High => "high",
+                };
+                let name = format!("{model_slug} {effort_label}");
+                let is_current = model_slug == current_model && effort == current_effort;
+                let model_for_action = model_slug.clone();
+                let actions: Vec<SelectionAction> = vec![Box::new(move |tx| {
+                    tx.send(AppEvent::CodexOp(Op::OverrideTurnContext {
+                        cwd: None,
+                        approval_policy: None,
+                        sandbox_policy: None,
+                        model_provider: None,
+                        model: Some(model_for_action.clone()),
+                        effort: Some(effort),
+                        summary: None,
+                    }));
+                    tx.send(AppEvent::UpdateModel(model_for_action.clone()));
+                    tx.send(AppEvent::UpdateReasoningEffort(effort));
+                })];
+                items.push(SelectionItem {
+                    name,
+                    description: None,
+                    is_current,
+                    actions,
+                });
+            }
+
+            self.bottom_pane.show_selection_view(
+                "Select reasoning level".to_string(),
+                Some("Adjust reasoning effort for the current model".to_string()),
+                Some("Press Enter to confirm or Esc to go back".to_string()),
+                items,
+            );
+        }
     }
 
     /// Open a popup to choose the model provider.
@@ -1320,6 +1369,9 @@ impl ChatWidget {
 
     pub(crate) fn set_model_provider(&mut self, id: String) {
         if let Some(provider) = self.config.model_providers.get(&id).cloned() {
+            if let Some(m) = provider.default_model.clone() {
+                self.config.model = m;
+            }
             self.config.model_provider_id = id;
             self.config.model_provider = provider;
         }
