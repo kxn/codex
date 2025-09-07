@@ -648,6 +648,10 @@ pub(crate) fn new_session_info(
             " /model".bold(),
             format!(" - {}", SlashCommand::Model.description()).dim(),
         ]));
+        lines.push(Line::from(vec![
+            " /provider".bold(),
+            format!(" - {}", SlashCommand::Provider.description()).dim(),
+        ]));
         PlainHistoryCell { lines }
     } else if config.model == model {
         PlainHistoryCell { lines: Vec::new() }

@@ -104,6 +104,11 @@ pub enum Op {
         #[serde(skip_serializing_if = "Option::is_none")]
         sandbox_policy: Option<SandboxPolicy>,
 
+        /// Updated model provider identifier.
+        #[serde(skip_serializing_if = "Option::is_none")]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        model_provider: Option<String>,
+
         /// Updated model slug. When set, the model family is derived
         /// automatically.
         #[serde(skip_serializing_if = "Option::is_none")]
