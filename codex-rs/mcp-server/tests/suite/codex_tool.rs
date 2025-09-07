@@ -6,6 +6,7 @@ use std::path::PathBuf;
 use codex_core::protocol::FileChange;
 use codex_core::protocol::ReviewDecision;
 use codex_core::spawn::CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR;
+use codex_mcp_server::CodexToolCallApprovalPolicy;
 use codex_mcp_server::CodexToolCallParam;
 use codex_mcp_server::ExecApprovalElicitRequestParams;
 use codex_mcp_server::ExecApprovalResponse;
@@ -91,6 +92,7 @@ async fn shell_command_approval_triggers_elicitation() -> anyhow::Result<()> {
     let codex_request_id = mcp_process
         .send_codex_tool_call(CodexToolCallParam {
             prompt: "run `git init`".to_string(),
+            approval_policy: Some(CodexToolCallApprovalPolicy::Untrusted),
             ..Default::default()
         })
         .await?;
@@ -237,6 +239,7 @@ async fn patch_approval_triggers_elicitation() -> anyhow::Result<()> {
         .send_codex_tool_call(CodexToolCallParam {
             cwd: Some(cwd.path().to_string_lossy().to_string()),
             prompt: "please modify the test file".to_string(),
+            approval_policy: Some(CodexToolCallApprovalPolicy::Untrusted),
             ..Default::default()
         })
         .await?;
@@ -436,8 +439,6 @@ async fn create_mcp_process(responses: Vec<String>) -> anyhow::Result<McpHandle>
 }
 
 /// Create a Codex config that uses the mock server as the model provider.
-/// It also uses `approval_policy = "untrusted"` so that we exercise the
-/// elicitation code path for shell commands.
 fn create_config_toml(codex_home: &Path, server_uri: &str) -> std::io::Result<()> {
     let config_toml = codex_home.join("config.toml");
     std::fs::write(
@@ -445,8 +446,6 @@ fn create_config_toml(codex_home: &Path, server_uri: &str) -> std::io::Result<()
         format!(
             r#"
 model = "mock-model"
-approval_policy = "untrusted"
-sandbox_policy = "read-only"
 
 model_provider = "mock_provider"
 
