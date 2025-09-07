@@ -271,18 +271,14 @@ async fn prefixes_context_and_instructions_once_and_consistently_across_requests
 
     let shell = default_user_shell().await;
 
+    let shell_line = match shell.name() {
+        Some(name) => format!("  <shell>{name}</shell>\n"),
+        None => String::new(),
+    };
     let expected_env_text = format!(
-        r#"<environment_context>
-  <cwd>{}</cwd>
-  <approval_policy>on-request</approval_policy>
-  <sandbox_mode>read-only</sandbox_mode>
-  <network_access>restricted</network_access>
-{}</environment_context>"#,
+        "<environment_context>\n  <cwd>{}</cwd>\n  <approval_policy>on-request</approval_policy>\n  <sandbox_mode>read-only</sandbox_mode>\n  <network_access>restricted</network_access>\n{shell_line}  <model_provider_id>openai</model_provider_id>\n  <model>gpt-5</model>\n</environment_context>",
         cwd.path().to_string_lossy(),
-        match shell.name() {
-            Some(name) => format!("  <shell>{name}</shell>\n"),
-            None => String::new(),
-        }
+        shell_line = shell_line,
     );
     let expected_ui_text =
         "<user_instructions>\n\nbe consistent and helpful\n\n</user_instructions>";
@@ -386,6 +382,7 @@ async fn overrides_turn_context_but_keeps_cached_prefix_and_key_constant() {
                 exclude_tmpdir_env_var: true,
                 exclude_slash_tmp: true,
             }),
+            model_provider: None,
             model: Some("o3".to_string()),
             effort: Some(ReasoningEffort::High),
             summary: Some(ReasoningSummary::Detailed),
@@ -430,6 +427,7 @@ async fn overrides_turn_context_but_keeps_cached_prefix_and_key_constant() {
   <approval_policy>never</approval_policy>
   <sandbox_mode>workspace-write</sandbox_mode>
   <network_access>enabled</network_access>
+  <model>o3</model>
 </environment_context>"#;
     let expected_env_msg_2 = serde_json::json!({
         "type": "message",

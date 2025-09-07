@@ -136,7 +136,7 @@ How long Codex will wait for activity on a streaming response before treating th
 
 ## model_provider
 
-Identifies which provider to use from the `model_providers` map. Defaults to `"openai"`. You can override the `base_url` for the built-in `openai` provider via the `OPENAI_BASE_URL` environment variable and the wire format via `OPENAI_WIRE_FORMAT` (`"responses"` or `"chat"`).
+Identifies which provider to use from the `model_providers` map. Defaults to `"openai"`. You can override the `base_url` for the built-in `openai` provider via the `OPENAI_BASE_URL` environment variable and the wire format via `OPENAI_WIRE_FORMAT` (`"responses"` or `"chat"`). Switch providers interactively during a session with the `/provider` command.
 
 When switching providers, Codex resets the active model to the provider's
 `default_model` if one is defined. If the provider omits `default_model`, you

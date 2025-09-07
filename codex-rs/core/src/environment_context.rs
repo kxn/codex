@@ -27,6 +27,8 @@ pub(crate) struct EnvironmentContext {
     pub sandbox_mode: Option<SandboxMode>,
     pub network_access: Option<NetworkAccess>,
     pub shell: Option<Shell>,
+    pub model_provider_id: Option<String>,
+    pub model: Option<String>,
 }
 
 impl EnvironmentContext {
@@ -35,6 +37,8 @@ impl EnvironmentContext {
         approval_policy: Option<AskForApproval>,
         sandbox_policy: Option<SandboxPolicy>,
         shell: Option<Shell>,
+        model_provider_id: Option<String>,
+        model: Option<String>,
     ) -> Self {
         Self {
             cwd,
@@ -58,6 +62,8 @@ impl EnvironmentContext {
                 None => None,
             },
             shell,
+            model_provider_id,
+            model,
         }
     }
 }
@@ -98,6 +104,14 @@ impl EnvironmentContext {
             && let Some(shell_name) = shell.name()
         {
             lines.push(format!("  <shell>{shell_name}</shell>"));
+        }
+        if let Some(provider_id) = self.model_provider_id {
+            lines.push(format!(
+                "  <model_provider_id>{provider_id}</model_provider_id>"
+            ));
+        }
+        if let Some(model) = self.model {
+            lines.push(format!("  <model>{model}</model>"));
         }
         lines.push(ENVIRONMENT_CONTEXT_CLOSE_TAG.to_string());
         lines.join("\n")

@@ -287,6 +287,7 @@ pub(crate) struct Session {
     codex_linux_sandbox_exe: Option<PathBuf>,
     user_shell: shell::Shell,
     show_raw_agent_reasoning: bool,
+    config: Arc<Config>,
 }
 
 /// The context needed for a single turn of the conversation.
@@ -471,6 +472,7 @@ impl Session {
             codex_linux_sandbox_exe: config.codex_linux_sandbox_exe.clone(),
             user_shell: default_shell,
             show_raw_agent_reasoning: config.show_raw_agent_reasoning,
+            config: config.clone(),
         });
 
         // Dispatch the SessionConfiguredEvent first and then report any errors.
@@ -545,6 +547,8 @@ impl Session {
             Some(turn_context.approval_policy),
             Some(turn_context.sandbox_policy.clone()),
             Some(self.user_shell.clone()),
+            Some(self.config.model_provider_id.clone()),
+            Some(self.config.model.clone()),
         )));
         self.record_conversation_items(&conversation_items).await;
     }
@@ -1047,19 +1051,38 @@ async fn submission_loop(
                 cwd,
                 approval_policy,
                 sandbox_policy,
+                model_provider,
                 model,
                 effort,
                 summary,
             } => {
                 // Recalculate the persistent turn context with provided overrides.
                 let prev = Arc::clone(&turn_context);
-                let provider = prev.client.get_provider();
+                let mut provider = prev.client.get_provider();
+                let mut updated_config = (*config).clone();
+
+                if let Some(provider_id) = model_provider.clone()
+                    && let Some(p) = config.model_providers.get(&provider_id).cloned()
+                    && !(p.requires_openai_auth && p.api_key().ok().flatten().is_none())
+                {
+                    provider = p.clone();
+                    updated_config.model_provider_id = provider_id.clone();
+                    updated_config.model_provider = p.clone();
+                }
 
                 // Effective model + family
-                let (effective_model, effective_family) = if let Some(m) = model {
+                let (effective_model, effective_family) = if let Some(m) = model.clone() {
                     let fam =
                         find_family_for_model(&m).unwrap_or_else(|| config.model_family.clone());
                     (m, fam)
+                } else if model_provider.is_some() {
+                    if let Some(dm) = provider.default_model.clone() {
+                        let fam = find_family_for_model(&dm)
+                            .unwrap_or_else(|| config.model_family.clone());
+                        (dm, fam)
+                    } else {
+                        (prev.client.get_model(), prev.client.get_model_family())
+                    }
                 } else {
                     (prev.client.get_model(), prev.client.get_model_family())
                 };
@@ -1071,7 +1094,6 @@ async fn submission_loop(
                 let auth_manager = prev.client.get_auth_manager();
 
                 // Build updated config for the client
-                let mut updated_config = (*config).clone();
                 updated_config.model = effective_model.clone();
                 updated_config.model_family = effective_family.clone();
                 if let Some(model_info) = get_model_info(&effective_family) {
@@ -1117,13 +1139,20 @@ async fn submission_loop(
 
                 // Install the new persistent context for subsequent tasks/turns.
                 turn_context = Arc::new(new_turn_context);
-                if cwd.is_some() || approval_policy.is_some() || sandbox_policy.is_some() {
+                if cwd.is_some()
+                    || approval_policy.is_some()
+                    || sandbox_policy.is_some()
+                    || model_provider.is_some()
+                    || model.is_some()
+                {
                     sess.record_conversation_items(&[ResponseItem::from(EnvironmentContext::new(
                         cwd,
                         approval_policy,
                         sandbox_policy,
                         // Shell is not configurable from turn to turn
                         None,
+                        model_provider,
+                        model,
                     ))])
                     .await;
                 }

@@ -10,6 +10,9 @@ path = "src/lib.rs"
 [lints]
 workspace = true
 
+[features]
+ts = []
+
 [dependencies]
 base64 = "0.22.1"
 mcp-types = { path = "../mcp-types" }

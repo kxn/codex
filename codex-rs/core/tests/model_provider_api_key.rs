@@ -1,4 +1,5 @@
-use codex_core::{ModelProviderInfo, WireApi};
+use codex_core::ModelProviderInfo;
+use codex_core::WireApi;
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -13,6 +14,7 @@ fn inline_api_key_is_used() {
         query_params: None,
         http_headers: None,
         env_http_headers: None,
+        default_model: None,
         request_max_retries: None,
         stream_max_retries: None,
         stream_idle_timeout_ms: None,
