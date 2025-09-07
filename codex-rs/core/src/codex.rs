@@ -1062,10 +1062,13 @@ async fn submission_loop(
                 let prev = Arc::clone(&turn_context);
                 let mut provider = prev.client.get_provider();
                 let mut updated_config = (*config).clone();
+                let auth_manager = prev.client.get_auth_manager();
 
                 if let Some(provider_id) = model_provider.clone()
                     && let Some(p) = config.model_providers.get(&provider_id).cloned()
-                    && !(p.requires_openai_auth && p.api_key().ok().flatten().is_none())
+                    && !(p.requires_openai_auth
+                        && p.api_key().ok().flatten().is_none()
+                        && auth_manager.as_ref().and_then(|m| m.auth()).is_none())
                 {
                     provider = p.clone();
                     updated_config.model_provider_id = provider_id.clone();
@@ -1106,8 +1109,6 @@ async fn submission_loop(
                 // Effective reasoning settings
                 let effective_effort = effort.unwrap_or(prev.client.get_reasoning_effort());
                 let effective_summary = summary.unwrap_or(prev.client.get_reasoning_summary());
-
-                let auth_manager = prev.client.get_auth_manager();
 
                 // Build updated config for the client
                 updated_config.model = effective_model.clone();
