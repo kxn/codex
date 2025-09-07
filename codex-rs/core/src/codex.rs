@@ -42,6 +42,7 @@ use crate::client::ModelClient;
 use crate::client_common::Prompt;
 use crate::client_common::ResponseEvent;
 use crate::config::Config;
+use crate::config_types::ReasoningSummaryFormat;
 use crate::config_types::ShellEnvironmentPolicy;
 use crate::conversation_history::ConversationHistory;
 use crate::conversation_manager::InitialHistory;
@@ -64,6 +65,7 @@ use crate::exec_command::WriteStdinParams;
 use crate::exec_env::create_env;
 use crate::mcp_connection_manager::McpConnectionManager;
 use crate::mcp_tool_call::handle_mcp_tool_call;
+use crate::model_family::ModelFamily;
 use crate::model_family::find_family_for_model;
 use crate::openai_model_info::get_model_info;
 use crate::openai_tools::ApplyPatchToolArgs;
@@ -1035,7 +1037,7 @@ impl AgentTask {
 async fn submission_loop(
     sess: Arc<Session>,
     turn_context: TurnContext,
-    config: Arc<Config>,
+    mut config: Arc<Config>,
     rx_sub: Receiver<Submission>,
 ) {
     // Wrap once to avoid cloning TurnContext for each task.
@@ -1063,21 +1065,36 @@ async fn submission_loop(
 
                 if let Some(provider_id) = model_provider.clone()
                     && let Some(p) = config.model_providers.get(&provider_id).cloned()
-                        && !(p.requires_openai_auth && p.api_key().ok().flatten().is_none()) {
-                            provider = p.clone();
-                            updated_config.model_provider_id = provider_id.clone();
-                            updated_config.model_provider = p.clone();
-                        }
+                    && !(p.requires_openai_auth && p.api_key().ok().flatten().is_none())
+                {
+                    provider = p.clone();
+                    updated_config.model_provider_id = provider_id.clone();
+                    updated_config.model_provider = p.clone();
+                }
 
                 // Effective model + family
                 let (effective_model, effective_family) = if let Some(m) = model.clone() {
-                    let fam =
-                        find_family_for_model(&m).unwrap_or_else(|| config.model_family.clone());
+                    let fam = find_family_for_model(&m).unwrap_or_else(|| ModelFamily {
+                        slug: m.clone(),
+                        family: m.clone(),
+                        needs_special_apply_patch_instructions: false,
+                        supports_reasoning_summaries: false,
+                        reasoning_summary_format: ReasoningSummaryFormat::None,
+                        uses_local_shell_tool: false,
+                        apply_patch_tool_type: None,
+                    });
                     (m, fam)
                 } else if model_provider.is_some() {
                     if let Some(dm) = provider.default_model.clone() {
-                        let fam = find_family_for_model(&dm)
-                            .unwrap_or_else(|| config.model_family.clone());
+                        let fam = find_family_for_model(&dm).unwrap_or_else(|| ModelFamily {
+                            slug: dm.clone(),
+                            family: dm.clone(),
+                            needs_special_apply_patch_instructions: false,
+                            supports_reasoning_summaries: false,
+                            reasoning_summary_format: ReasoningSummaryFormat::None,
+                            uses_local_shell_tool: false,
+                            apply_patch_tool_type: None,
+                        });
                         (dm, fam)
                     } else {
                         (prev.client.get_model(), prev.client.get_model_family())
@@ -1099,8 +1116,9 @@ async fn submission_loop(
                     updated_config.model_context_window = Some(model_info.context_window);
                 }
 
+                let updated_config = Arc::new(updated_config);
                 let client = ModelClient::new(
-                    Arc::new(updated_config),
+                    Arc::clone(&updated_config),
                     auth_manager,
                     provider,
                     effective_effort,
@@ -1113,6 +1131,9 @@ async fn submission_loop(
                     .clone()
                     .unwrap_or(prev.sandbox_policy.clone());
                 let new_cwd = cwd.clone().unwrap_or_else(|| prev.cwd.clone());
+
+                // Persist the new config for subsequent operations.
+                config = Arc::clone(&updated_config);
 
                 let tools_config = ToolsConfig::new(&ToolsConfigParams {
                     model_family: &effective_family,
