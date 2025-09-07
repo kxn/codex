@@ -293,6 +293,9 @@ impl App {
             AppEvent::UpdateModel(model) => {
                 self.chat_widget.set_model(model);
             }
+            AppEvent::UpdateModelProvider(id) => {
+                self.chat_widget.set_model_provider(id);
+            }
             AppEvent::UpdateAskForApprovalPolicy(policy) => {
                 self.chat_widget.set_approval_policy(policy);
             }

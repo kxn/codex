@@ -833,6 +833,9 @@ impl ChatWidget {
             SlashCommand::Model => {
                 self.open_model_popup();
             }
+            SlashCommand::Provider => {
+                self.open_provider_popup();
+            }
             SlashCommand::Approvals => {
                 self.open_approvals_popup();
             }
@@ -1182,6 +1185,7 @@ impl ChatWidget {
                     cwd: None,
                     approval_policy: None,
                     sandbox_policy: None,
+                    model_provider: None,
                     model: Some(model_slug.clone()),
                     effort: Some(effort),
                     summary: None,
@@ -1212,6 +1216,46 @@ impl ChatWidget {
         );
     }
 
+    /// Open a popup to choose the model provider.
+    pub(crate) fn open_provider_popup(&mut self) {
+        let current_provider = self.config.model_provider_id.clone();
+        let mut items: Vec<SelectionItem> = Vec::new();
+        for (id, provider) in self.config.model_providers.iter() {
+            let name = provider.name.clone();
+            let is_current = *id == current_provider;
+            let provider_id = id.clone();
+            let default_model = provider.default_model.clone();
+            let actions: Vec<SelectionAction> = vec![Box::new(move |tx| {
+                tx.send(AppEvent::CodexOp(Op::OverrideTurnContext {
+                    cwd: None,
+                    approval_policy: None,
+                    sandbox_policy: None,
+                    model_provider: Some(provider_id.clone()),
+                    model: default_model.clone(),
+                    effort: None,
+                    summary: None,
+                }));
+                tx.send(AppEvent::UpdateModelProvider(provider_id.clone()));
+                if let Some(m) = default_model.clone() {
+                    tx.send(AppEvent::UpdateModel(m));
+                }
+            })];
+            items.push(SelectionItem {
+                name,
+                description: None,
+                is_current,
+                actions,
+            });
+        }
+
+        self.bottom_pane.show_selection_view(
+            "Select model provider".to_string(),
+            Some("Switch between model providers".to_string()),
+            Some("Press Enter to confirm or Esc to go back".to_string()),
+            items,
+        );
+    }
+
     /// Open a popup to choose the approvals mode (ask for approval policy + sandbox policy).
     pub(crate) fn open_approvals_popup(&mut self) {
         let current_approval = self.config.approval_policy;
@@ -1230,6 +1274,7 @@ impl ChatWidget {
                     cwd: None,
                     approval_policy: Some(approval),
                     sandbox_policy: Some(sandbox.clone()),
+                    model_provider: None,
                     model: None,
                     effort: None,
                     summary: None,
@@ -1271,6 +1316,13 @@ impl ChatWidget {
     /// Set the model in the widget's config copy.
     pub(crate) fn set_model(&mut self, model: String) {
         self.config.model = model;
+    }
+
+    pub(crate) fn set_model_provider(&mut self, id: String) {
+        if let Some(provider) = self.config.model_providers.get(&id).cloned() {
+            self.config.model_provider_id = id;
+            self.config.model_provider = provider;
+        }
     }
 
     pub(crate) fn add_mcp_output(&mut self) {

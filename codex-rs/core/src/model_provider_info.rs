@@ -73,6 +73,9 @@ pub struct ModelProviderInfo {
     /// value is empty, the header will not be included in the request.
     pub env_http_headers: Option<HashMap<String, String>>,
 
+    /// Optional default model for this provider.
+    pub default_model: Option<String>,
+
     /// Maximum number of times to retry a failed HTTP request to this provider.
     pub request_max_retries: Option<u64>,
 
@@ -293,6 +296,7 @@ pub fn built_in_model_providers() -> HashMap<String, ModelProviderInfo> {
                     .into_iter()
                     .collect(),
                 ),
+                default_model: Some("gpt-5".into()),
                 // Use global defaults for retry/timeout unless overridden in config.toml.
                 request_max_retries: None,
                 stream_max_retries: None,
@@ -339,6 +343,7 @@ pub fn create_oss_provider_with_base_url(base_url: &str) -> ModelProviderInfo {
         query_params: None,
         http_headers: None,
         env_http_headers: None,
+        default_model: None,
         request_max_retries: None,
         stream_max_retries: None,
         stream_idle_timeout_ms: None,
@@ -367,6 +372,7 @@ base_url = "http://localhost:11434/v1"
             query_params: None,
             http_headers: None,
             env_http_headers: None,
+            default_model: None,
             request_max_retries: None,
             stream_max_retries: None,
             stream_idle_timeout_ms: None,
@@ -397,6 +403,7 @@ query_params = { api-version = "2025-04-01-preview" }
             }),
             http_headers: None,
             env_http_headers: None,
+            default_model: None,
             request_max_retries: None,
             stream_max_retries: None,
             stream_idle_timeout_ms: None,
@@ -430,6 +437,7 @@ env_http_headers = { "X-Example-Env-Header" = "EXAMPLE_ENV_VAR" }
             env_http_headers: Some(maplit::hashmap! {
                 "X-Example-Env-Header".to_string() => "EXAMPLE_ENV_VAR".to_string(),
             }),
+            default_model: None,
             request_max_retries: None,
             stream_max_retries: None,
             stream_idle_timeout_ms: None,
