@@ -77,13 +77,11 @@ async fn chat_includes_authorization_header_with_openai_api_key() {
     config.model_provider = provider.clone();
     let effort = config.model_reasoning_effort;
     let summary = config.model_reasoning_summary;
-    let originator = config.responses_originator_header.clone();
     let config = Arc::new(config);
 
     let auth_manager = Arc::new(AuthManager::new(
         codex_home.path().to_path_buf(),
         AuthMode::ApiKey,
-        originator,
     ));
 
     let client = ModelClient::new(
@@ -92,7 +90,7 @@ async fn chat_includes_authorization_header_with_openai_api_key() {
         provider,
         effort,
         summary,
-        Uuid::new_v4(),
+        codex_protocol::mcp_protocol::ConversationId(Uuid::new_v4()),
     );
 
     let mut prompt = Prompt::default();
