@@ -43,8 +43,6 @@ pub(crate) const PROJECT_DOC_MAX_BYTES: usize = 32 * 1024; // 32 KiB
 
 const CONFIG_TOML_FILE: &str = "config.toml";
 
-const DEFAULT_RESPONSES_ORIGINATOR_HEADER: &str = "codex_cli_rs";
-
 /// Application configuration loaded from disk and merged with overrides.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Config {
@@ -172,10 +170,6 @@ pub struct Config {
 
     pub tools_web_search_request: bool,
 
-    /// The value for the `originator` header included with Responses API requests.
-    pub responses_originator_header: String,
-
-    /// If set to `true`, the API key will be signed with the `originator` header.
     pub preferred_auth_method: AuthMode,
 
     pub use_experimental_streamable_shell_tool: bool,
@@ -481,12 +475,8 @@ pub struct ConfigToml {
 
     pub experimental_use_exec_command_tool: Option<bool>,
 
-    /// The value for the `originator` header included with Responses API requests.
-    pub responses_originator_header_internal_override: Option<String>,
-
     pub projects: Option<HashMap<String, ProjectConfig>>,
 
-    /// If set to `true`, the API key will be signed with the `originator` header.
     pub preferred_auth_method: Option<AuthMode>,
 
     /// Nested tools section for feature toggles
@@ -786,10 +776,6 @@ impl Config {
             Self::get_base_instructions(experimental_instructions_path, &resolved_cwd)?;
         let base_instructions = base_instructions.or(file_base_instructions);
 
-        let responses_originator_header: String = cfg
-            .responses_originator_header_internal_override
-            .unwrap_or(DEFAULT_RESPONSES_ORIGINATOR_HEADER.to_owned());
-
         let mut config = Self {
             model,
             model_family,
@@ -839,7 +825,6 @@ impl Config {
             include_plan_tool: include_plan_tool.unwrap_or(false),
             include_apply_patch_tool: include_apply_patch_tool.unwrap_or(false),
             tools_web_search_request,
-            responses_originator_header,
             preferred_auth_method: cfg.preferred_auth_method.unwrap_or(AuthMode::ChatGPT),
             use_experimental_streamable_shell_tool: cfg
                 .experimental_use_exec_command_tool
@@ -1221,7 +1206,6 @@ model_verbosity = "high"
                 include_plan_tool: false,
                 include_apply_patch_tool: false,
                 tools_web_search_request: false,
-                responses_originator_header: "codex_cli_rs".to_string(),
                 preferred_auth_method: AuthMode::ChatGPT,
                 use_experimental_streamable_shell_tool: false,
                 include_view_image_tool: true,
@@ -1278,7 +1262,6 @@ model_verbosity = "high"
             include_plan_tool: false,
             include_apply_patch_tool: false,
             tools_web_search_request: false,
-            responses_originator_header: "codex_cli_rs".to_string(),
             preferred_auth_method: AuthMode::ChatGPT,
             use_experimental_streamable_shell_tool: false,
             include_view_image_tool: true,
@@ -1350,7 +1333,6 @@ model_verbosity = "high"
             include_plan_tool: false,
             include_apply_patch_tool: false,
             tools_web_search_request: false,
-            responses_originator_header: "codex_cli_rs".to_string(),
             preferred_auth_method: AuthMode::ChatGPT,
             use_experimental_streamable_shell_tool: false,
             include_view_image_tool: true,
@@ -1408,7 +1390,6 @@ model_verbosity = "high"
             include_plan_tool: false,
             include_apply_patch_tool: false,
             tools_web_search_request: false,
-            responses_originator_header: "codex_cli_rs".to_string(),
             preferred_auth_method: AuthMode::ChatGPT,
             use_experimental_streamable_shell_tool: false,
             include_view_image_tool: true,
