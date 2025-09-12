@@ -693,6 +693,8 @@ impl Session {
             Some(turn_context.approval_policy),
             Some(turn_context.sandbox_policy.clone()),
             Some(self.user_shell.clone()),
+            Some(turn_context.client.get_provider().name.clone()),
+            Some(turn_context.client.get_model()),
         )));
         items
     }

@@ -37,6 +37,7 @@ pub const USER_MESSAGE_BEGIN: &str = "## My request for Codex:";
 
 /// Submission Queue Entry - requests from user
 #[derive(Debug, Clone, Deserialize, Serialize)]
+#[cfg_attr(feature = "ts", derive(TS))]
 pub struct Submission {
     /// Unique id for this Submission to correlate with Events
     pub id: String,
@@ -46,6 +47,7 @@ pub struct Submission {
 
 /// Submission operation
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[cfg_attr(feature = "ts", derive(TS))]
 #[serde(tag = "type", rename_all = "snake_case")]
 #[allow(clippy::large_enum_variant)]
 #[non_exhaustive]
@@ -384,6 +386,7 @@ impl SandboxPolicy {
 #[non_exhaustive]
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[cfg_attr(feature = "ts", derive(TS))]
 pub enum InputItem {
     Text {
         text: String,
