@@ -9,11 +9,10 @@ use std::sync::atomic::AtomicU64;
 use std::time::Duration;
 
 use crate::AuthManager;
-use crate::config_edit::CONFIG_KEY_EFFORT;
-use crate::config_edit::CONFIG_KEY_MODEL;
-use crate::config_edit::persist_non_null_overrides;
 use crate::event_mapping::map_response_item_to_event_messages;
+use crate::rollout::recorder::CompactedItem;
 use crate::rollout::recorder::RolloutItem;
+use crate::rollout::recorder::TurnContextItem;
 use async_channel::Receiver;
 use async_channel::Sender;
 use codex_apply_patch::ApplyPatchAction;
@@ -24,7 +23,6 @@ use codex_protocol::protocol::ConversationPathResponseEvent;
 use codex_protocol::protocol::TaskStartedEvent;
 use codex_protocol::protocol::TurnAbortReason;
 use codex_protocol::protocol::TurnAbortedEvent;
-use codex_protocol::protocol::TurnContextItem;
 use futures::prelude::*;
 use mcp_types::CallToolResult;
 use serde::Deserialize;
@@ -51,6 +49,7 @@ use crate::config::Config;
 use crate::config_types::ReasoningSummaryFormat;
 use crate::config_types::ShellEnvironmentPolicy;
 use crate::conversation_history::ConversationHistory;
+use crate::conversation_manager::InitialHistory;
 use crate::environment_context::EnvironmentContext;
 use crate::error::CodexErr;
 use crate::error::Result as CodexResult;
@@ -129,7 +128,6 @@ use codex_protocol::models::LocalShellAction;
 use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::models::ShellToolCallParams;
-use codex_protocol::protocol::InitialHistory;
 
 // A convenience extension trait for acquiring mutex locks where poisoning is
 // unrecoverable and should abort the program. This avoids scattered `.unwrap()`
@@ -697,7 +695,7 @@ impl Session {
             Some(turn_context.approval_policy),
             Some(turn_context.sandbox_policy.clone()),
             Some(self.user_shell.clone()),
-            Some(turn_context.client.get_provider().name.clone()),
+            Some(turn_context.client.get_provider().name),
             Some(turn_context.client.get_model()),
         )));
         items
@@ -1075,7 +1073,7 @@ impl AgentTask {
                 id: self.sub_id,
                 msg: EventMsg::TurnAborted(TurnAbortedEvent { reason }),
             };
-            let sess = self.sess.clone();
+            let sess = self.sess;
             tokio::spawn(async move {
                 sess.send_event(event).await;
             });

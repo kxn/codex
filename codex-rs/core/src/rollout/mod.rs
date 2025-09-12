@@ -6,8 +6,6 @@ pub const ARCHIVED_SESSIONS_SUBDIR: &str = "archived_sessions";
 pub mod list;
 pub(crate) mod policy;
 pub mod recorder;
-
-pub use codex_protocol::protocol::SessionMeta;
 pub use recorder::RolloutRecorder;
 pub use recorder::RolloutRecorderParams;
 pub use recorder::SessionMeta;

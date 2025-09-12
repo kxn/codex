@@ -1,6 +1,7 @@
 use assert_cmd::Command as AssertCommand;
 use codex_core::RolloutRecorder;
 use codex_core::spawn::CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR;
+use codex_core::git_info::GitInfo;
 use std::time::Duration;
 use std::time::Instant;
 use tempfile::TempDir;

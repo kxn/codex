@@ -31,7 +31,11 @@ use crate::conversation_manager::ResumedHistory;
 use crate::default_client::ORIGINATOR;
 use crate::git_info::GitInfo;
 use crate::git_info::collect_git_info;
+use crate::protocol::AskForApproval;
 use crate::protocol::EventMsg;
+use crate::protocol::SandboxPolicy;
+use codex_protocol::config_types::ReasoningEffort as ReasoningEffortConfig;
+use codex_protocol::config_types::ReasoningSummary as ReasoningSummaryConfig;
 use codex_protocol::models::ResponseItem;
 
 #[derive(Serialize, Deserialize, Clone, Default, Debug)]
@@ -53,18 +57,35 @@ pub struct SessionMetaLine {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TurnContextItem {
+    pub cwd: PathBuf,
+    pub approval_policy: AskForApproval,
+    pub sandbox_policy: SandboxPolicy,
+    pub model: String,
+    pub effort: ReasoningEffortConfig,
+    pub summary: ReasoningSummaryConfig,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct CompactedItem {
+    pub message: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 #[serde(tag = "type", content = "payload", rename_all = "snake_case")]
 pub enum RolloutItem {
     SessionMeta(SessionMetaLine),
     ResponseItem(ResponseItem),
     EventMsg(EventMsg),
+    TurnContext(TurnContextItem),
+    Compacted(CompactedItem),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
-pub(crate) struct RolloutLine {
-    pub(crate) timestamp: String,
+pub struct RolloutLine {
+    pub timestamp: String,
     #[serde(flatten)]
-    pub(crate) item: RolloutItem,
+    pub item: RolloutItem,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone)]
@@ -108,7 +129,12 @@ pub enum RolloutRecorderParams {
 
 enum RolloutCmd {
     AddItems(Vec<RolloutItem>),
-    Shutdown { ack: oneshot::Sender<()> },
+    Flush {
+        ack: oneshot::Sender<std::io::Result<()>>,
+    },
+    Shutdown {
+        ack: oneshot::Sender<()>,
+    },
 }
 
 impl RolloutRecorderParams {
@@ -216,6 +242,20 @@ impl RolloutRecorder {
             .map_err(|e| IoError::other(format!("failed to queue rollout items: {e}")))
     }
 
+    pub fn get_rollout_path(&self) -> PathBuf {
+        self.rollout_path.clone()
+    }
+
+    pub async fn flush(&self) -> std::io::Result<()> {
+        let (tx, rx) = oneshot::channel();
+        self.tx
+            .send(RolloutCmd::Flush { ack: tx })
+            .await
+            .map_err(|e| IoError::other(format!("failed to queue flush: {e}")))?;
+        rx.await
+            .map_err(|e| IoError::other(format!("flush response: {e}")))?
+    }
+
     pub(crate) async fn get_rollout_history(path: &Path) -> std::io::Result<InitialHistory> {
         info!("Resuming rollout from {path:?}");
         tracing::error!("Resuming rollout from {path:?}");
@@ -254,6 +294,12 @@ impl RolloutRecorder {
                     }
                     RolloutItem::EventMsg(_ev) => {
                         items.push(RolloutItem::EventMsg(_ev));
+                    }
+                    RolloutItem::TurnContext(tc) => {
+                        items.push(RolloutItem::TurnContext(tc));
+                    }
+                    RolloutItem::Compacted(c) => {
+                        items.push(RolloutItem::Compacted(c));
                     }
                 },
                 Err(e) => {
@@ -381,6 +427,10 @@ async fn rollout_writer(
                         writer.write_rollout_item(item).await?;
                     }
                 }
+            }
+            RolloutCmd::Flush { ack } => {
+                let res = writer.file.flush().await;
+                let _ = ack.send(res);
             }
             RolloutCmd::Shutdown { ack } => {
                 let _ = ack.send(());

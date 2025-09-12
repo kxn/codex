@@ -9,7 +9,9 @@ pub(crate) fn is_persisted_response_item(item: &RolloutItem) -> bool {
         RolloutItem::ResponseItem(item) => should_persist_response_item(item),
         RolloutItem::EventMsg(ev) => should_persist_event_msg(ev),
         // Always persist session meta
-        RolloutItem::SessionMeta(_) => true,
+        RolloutItem::SessionMeta(_) | RolloutItem::TurnContext(_) | RolloutItem::Compacted(_) => {
+            true
+        }
     }
 }
 
