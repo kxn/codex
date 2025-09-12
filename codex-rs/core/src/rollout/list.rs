@@ -323,6 +323,7 @@ async fn read_head_and_flags(
                     saw_user_event = true;
                 }
             }
+            RolloutItem::TurnContext(_) | RolloutItem::Compacted(_) => {}
         }
     }
 

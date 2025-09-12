@@ -3,7 +3,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use codex_protocol::mcp_protocol::GitSha;
-use codex_protocol::protocol::GitInfo;
 use futures::future::join_all;
 use serde::Deserialize;
 use serde::Serialize;
@@ -48,6 +47,16 @@ const GIT_COMMAND_TIMEOUT: TokioDuration = TokioDuration::from_secs(5);
 pub struct GitDiffToRemote {
     pub sha: GitSha,
     pub diff: String,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug)]
+pub struct GitInfo {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit_hash: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub branch: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub repository_url: Option<String>,
 }
 
 /// Collect git repository information from the given working directory using command-line git.

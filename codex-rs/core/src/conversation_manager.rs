@@ -239,42 +239,33 @@ impl ConversationManager {
 /// Return a prefix of `items` obtained by dropping the last `n` user messages
 /// and all items that follow them.
 fn truncate_after_dropping_last_messages(history: InitialHistory, n: usize) -> InitialHistory {
+    let mut items = history.get_rollout_items();
     if n == 0 {
-        let rolled: Vec<RolloutItem> = items.into_iter().map(RolloutItem::ResponseItem).collect();
-        return InitialHistory::Forked(rolled);
+        if items.is_empty() {
+            return InitialHistory::New;
+        }
+        return InitialHistory::Forked(items);
     }
 
-    // Work directly on rollout items, and cut the vector at the nth-from-last user message input.
-    let items: Vec<RolloutItem> = history.get_rollout_items();
-
-    // Find indices of user message inputs in rollout order.
-    let mut user_positions: Vec<usize> = Vec::new();
+    let mut user_positions = Vec::new();
     for (idx, item) in items.iter().enumerate() {
         if let RolloutItem::ResponseItem(ResponseItem::Message { role, .. }) = item
-            && role == "user"
-        {
-            user_positions.push(idx);
-        }
+            && role == "user" {
+                user_positions.push(idx);
+            }
     }
 
-    // If fewer than n user messages exist, treat as empty.
     if user_positions.len() < n {
         return InitialHistory::New;
     }
 
-    // Cut strictly before the nth-from-last user message (do not keep the nth itself).
     let cut_idx = user_positions[user_positions.len() - n];
-    let rolled: Vec<RolloutItem> = items.into_iter().take(cut_idx).collect();
+    items.truncate(cut_idx);
 
-    if rolled.is_empty() {
+    if items.is_empty() {
         InitialHistory::New
     } else {
-        let rolled: Vec<RolloutItem> = items
-            .into_iter()
-            .take(cut_index)
-            .map(RolloutItem::ResponseItem)
-            .collect();
-        InitialHistory::Forked(rolled)
+        InitialHistory::Forked(items)
     }
 }
 
@@ -329,7 +320,14 @@ mod tests {
             assistant_msg("a4"),
         ];
 
-        let truncated = truncate_after_dropping_last_messages(items.clone(), 1);
+        let history = InitialHistory::Forked(
+            items
+                .iter()
+                .cloned()
+                .map(RolloutItem::ResponseItem)
+                .collect(),
+        );
+        let truncated = truncate_after_dropping_last_messages(history.clone(), 1);
         let got_items = truncated.get_rollout_items();
         let expected_items = vec![
             RolloutItem::ResponseItem(items[0].clone()),
@@ -341,7 +339,7 @@ mod tests {
             serde_json::to_value(&expected_items).unwrap()
         );
 
-        let truncated2 = truncate_after_dropping_last_messages(items, 2);
+        let truncated2 = truncate_after_dropping_last_messages(history, 2);
         assert!(matches!(truncated2, InitialHistory::New));
     }
 }

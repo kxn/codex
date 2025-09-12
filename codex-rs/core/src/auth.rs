@@ -17,9 +17,7 @@ use std::time::Duration;
 
 use codex_protocol::mcp_protocol::AuthMode;
 
-use crate::token_data::PlanType;
-use crate::token_data::TokenData;
-use crate::token_data::parse_id_token;
+use crate::token_data::{KnownPlan, PlanType, TokenData, parse_id_token};
 
 #[derive(Debug, Clone)]
 pub struct CodexAuth {
@@ -228,7 +226,7 @@ pub fn login_with_api_key(codex_home: &Path, api_key: &str) -> std::io::Result<(
 fn load_auth(
     codex_home: &Path,
     include_env_var: bool,
-    preferred_auth_method: AuthMode,
+    _preferred_auth_method: AuthMode,
 ) -> std::io::Result<Option<CodexAuth>> {
     let client = crate::default_client::create_client();
 
@@ -258,9 +256,23 @@ fn load_auth(
         last_refresh,
     } = auth_dot_json;
 
-    // Prefer AuthMode.ApiKey if it's set in the auth.json.
     if let Some(api_key) = &auth_json_api_key {
-        return Ok(Some(CodexAuth::from_api_key_with_client(api_key, client)));
+        let plan_allows_api_key = tokens
+            .as_ref()
+            .and_then(|t| t.id_token.chatgpt_plan_type.clone())
+            .map(|plan| {
+                matches!(
+                    plan,
+                    PlanType::Known(KnownPlan::Plus)
+                        | PlanType::Known(KnownPlan::Team)
+                        | PlanType::Known(KnownPlan::Business)
+                        | PlanType::Known(KnownPlan::Enterprise)
+                )
+            })
+            .unwrap_or(true);
+        if plan_allows_api_key {
+            return Ok(Some(CodexAuth::from_api_key_with_client(api_key, client)));
+        }
     }
 
     Ok(Some(CodexAuth {
@@ -392,6 +404,7 @@ use std::sync::RwLock;
 /// Internal cached auth state.
 #[derive(Clone, Debug)]
 struct CachedAuth {
+    preferred_auth_mode: AuthMode,
     auth: Option<CodexAuth>,
 }
 
@@ -711,7 +724,10 @@ impl AuthManager {
 
     /// Create an AuthManager with a specific CodexAuth, for testing only.
     pub fn from_auth_for_testing(auth: CodexAuth) -> Arc<Self> {
-        let cached = CachedAuth { auth: Some(auth) };
+        let cached = CachedAuth {
+            preferred_auth_mode: AuthMode::ChatGPT,
+            auth: Some(auth),
+        };
         Arc::new(Self {
             codex_home: PathBuf::new(),
             inner: RwLock::new(cached),
@@ -721,6 +737,13 @@ impl AuthManager {
     /// Current cached auth (clone). May be `None` if not logged in or load failed.
     pub fn auth(&self) -> Option<CodexAuth> {
         self.inner.read().ok().and_then(|c| c.auth.clone())
+    }
+
+    pub fn preferred_auth_method(&self) -> AuthMode {
+        self.inner
+            .read()
+            .map(|c| c.preferred_auth_mode)
+            .unwrap_or(AuthMode::ChatGPT)
     }
 
     /// Force a reload of the auth information from auth.json. Returns

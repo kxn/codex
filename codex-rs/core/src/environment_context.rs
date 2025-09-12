@@ -173,6 +173,8 @@ mod tests {
             Some(AskForApproval::OnRequest),
             Some(workspace_write_policy(vec!["/repo", "/tmp"], false)),
             None,
+            None,
+            None,
         );
 
         let expected = r#"<environment_context>
@@ -196,6 +198,8 @@ mod tests {
             Some(AskForApproval::Never),
             Some(SandboxPolicy::ReadOnly),
             None,
+            None,
+            None,
         );
 
         let expected = r#"<environment_context>
@@ -213,6 +217,8 @@ mod tests {
             None,
             Some(AskForApproval::OnFailure),
             Some(SandboxPolicy::DangerFullAccess),
+            None,
+            None,
             None,
         );
 
