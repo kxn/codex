@@ -107,6 +107,16 @@ http_headers = { "X-Example-Header" = "example-value" }
 env_http_headers = { "X-Example-Features" = "EXAMPLE_FEATURES" }
 ```
 
+A provider can also specify a proxy used for HTTP and HTTPS requests. The
+value may include the `http://` prefix or omit it:
+
+```toml
+[model_providers.example]
+http_proxy = "192.168.1.1:8080"
+# or
+http_proxy = "http://192.168.1.1:8080"
+```
+
 ### Per-provider network tuning
 
 The following optional settings control retry behaviour and streaming idle timeouts **per model provider**. They must be specified inside the corresponding `[model_providers.<id>]` block in `config.toml`. (Older releases accepted top‑level keys; those are now ignored.)
@@ -604,6 +614,7 @@ Options that are specific to the TUI.
 | `model_providers.<id>.query_params`              | map<string,string>                                                | Extra query params (e.g., Azure `api-version`).                         |
 | `model_providers.<id>.http_headers`              | map<string,string>                                                | Additional static headers.                                              |
 | `model_providers.<id>.env_http_headers`          | map<string,string>                                                | Headers sourced from env vars.                                          |
+| `model_providers.<id>.http_proxy`                | string                                                            | HTTP/HTTPS proxy in `host:port` or `http://host:port` form.            |
 | `model_providers.<id>.default_model`             | string                                                            | Model to select when the provider is chosen.                            |
 | `model_providers.<id>.request_max_retries`       | number                                                            | Per‑provider HTTP retry count (default: 4).                             |
 | `model_providers.<id>.stream_max_retries`        | number                                                            | SSE stream retry count (default: 5).                                    |
