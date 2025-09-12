@@ -9,6 +9,9 @@ use std::sync::atomic::AtomicU64;
 use std::time::Duration;
 
 use crate::AuthManager;
+use crate::config_edit::CONFIG_KEY_EFFORT;
+use crate::config_edit::CONFIG_KEY_MODEL;
+use crate::config_edit::persist_non_null_overrides;
 use crate::event_mapping::map_response_item_to_event_messages;
 use crate::rollout::recorder::RolloutItem;
 use async_channel::Receiver;
@@ -21,8 +24,10 @@ use codex_protocol::protocol::ConversationHistoryResponseEvent;
 use codex_protocol::protocol::TaskStartedEvent;
 use codex_protocol::protocol::TurnAbortReason;
 use codex_protocol::protocol::TurnAbortedEvent;
+use codex_protocol::protocol::TurnContextItem;
 use futures::prelude::*;
 use mcp_types::CallToolResult;
+use serde::Deserialize;
 use serde::Serialize;
 use serde_json;
 use tokio::sync::oneshot;
@@ -46,7 +51,6 @@ use crate::config::Config;
 use crate::config_types::ReasoningSummaryFormat;
 use crate::config_types::ShellEnvironmentPolicy;
 use crate::conversation_history::ConversationHistory;
-use crate::conversation_manager::InitialHistory;
 use crate::environment_context::EnvironmentContext;
 use crate::error::CodexErr;
 use crate::error::Result as CodexResult;
@@ -112,6 +116,7 @@ use crate::safety::assess_command_safety;
 use crate::safety::assess_safety_for_untrusted_command;
 use crate::shell;
 use crate::turn_diff_tracker::TurnDiffTracker;
+use crate::unified_exec::UnifiedExecSessionManager;
 use crate::user_instructions::UserInstructions;
 use crate::user_notification::UserNotification;
 use crate::util::backoff;
@@ -124,6 +129,7 @@ use codex_protocol::models::LocalShellAction;
 use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::models::ShellToolCallParams;
+use codex_protocol::protocol::InitialHistory;
 
 // A convenience extension trait for acquiring mutex locks where poisoning is
 // unrecoverable and should abort the program. This avoids scattered `.unwrap()`
@@ -209,12 +215,7 @@ impl Codex {
         let conversation_id = session.conversation_id;
 
         // This task will run until Op::Shutdown is received.
-        tokio::spawn(submission_loop(
-            session.clone(),
-            turn_context,
-            config,
-            rx_sub,
-        ));
+        tokio::spawn(submission_loop(session, turn_context, config, rx_sub));
         let codex = Codex {
             next_id: AtomicU64::new(0),
             tx_sub,
@@ -279,6 +280,7 @@ pub(crate) struct Session {
     /// Manager for external MCP servers/tools.
     mcp_connection_manager: McpConnectionManager,
     session_manager: ExecSessionManager,
+    unified_exec_manager: UnifiedExecSessionManager,
 
     /// External notifier command (will be passed as args to exec()). When
     /// `None` this feature is disabled.
@@ -471,6 +473,7 @@ impl Session {
                 include_web_search_request: config.tools_web_search_request,
                 use_streamable_shell_tool: config.use_experimental_streamable_shell_tool,
                 include_view_image_tool: config.include_view_image_tool,
+                experimental_unified_exec_tool: config.use_experimental_unified_exec_tool,
             }),
             user_instructions,
             base_instructions,
@@ -485,6 +488,7 @@ impl Session {
             tx_event: tx_event.clone(),
             mcp_connection_manager,
             session_manager: ExecSessionManager::default(),
+            unified_exec_manager: UnifiedExecSessionManager::default(),
             notify,
             state: Mutex::new(state),
             rollout: Mutex::new(Some(rollout_recorder)),
@@ -1190,6 +1194,7 @@ async fn submission_loop(
                     include_web_search_request: config.tools_web_search_request,
                     use_streamable_shell_tool: config.use_experimental_streamable_shell_tool,
                     include_view_image_tool: config.include_view_image_tool,
+                    experimental_unified_exec_tool: config.use_experimental_unified_exec_tool,
                 });
 
                 let new_turn_context = TurnContext {
@@ -1282,6 +1287,8 @@ async fn submission_loop(
                             use_streamable_shell_tool: config
                                 .use_experimental_streamable_shell_tool,
                             include_view_image_tool: config.include_view_image_tool,
+                            experimental_unified_exec_tool: config
+                                .use_experimental_unified_exec_tool,
                         }),
                         user_instructions: turn_context.user_instructions.clone(),
                         base_instructions: turn_context.base_instructions.clone(),
@@ -1430,7 +1437,22 @@ async fn submission_loop(
             }
             Op::GetHistory => {
                 let sub_id = sub.id.clone();
-
+                // Flush rollout writes before returning the path so readers observe a consistent file.
+                let (path, rec_opt) = {
+                    let guard = sess.rollout.lock_unchecked();
+                    match guard.as_ref() {
+                        Some(rec) => (rec.get_rollout_path(), Some(rec.clone())),
+                        None => {
+                            error!("rollout recorder not found");
+                            continue;
+                        }
+                    }
+                };
+                if let Some(rec) = rec_opt
+                    && let Err(e) = rec.flush().await
+                {
+                    warn!("failed to flush rollout recorder before GetHistory: {e}");
+                }
                 let event = Event {
                     id: sub_id.clone(),
                     msg: EventMsg::ConversationHistory(ConversationHistoryResponseEvent {
@@ -1778,7 +1800,7 @@ async fn try_run_turn(
                 }
             })
             .map(|call_id| ResponseItem::CustomToolCallOutput {
-                call_id: call_id.clone(),
+                call_id,
                 output: "aborted".to_string(),
             })
             .collect::<Vec<_>>()
@@ -1794,6 +1816,15 @@ async fn try_run_turn(
         })
     };
 
+    let rollout_item = RolloutItem::TurnContext(TurnContextItem {
+        cwd: turn_context.cwd.clone(),
+        approval_policy: turn_context.approval_policy,
+        sandbox_policy: turn_context.sandbox_policy.clone(),
+        model: turn_context.client.get_model(),
+        effort: turn_context.client.get_reasoning_effort(),
+        summary: turn_context.client.get_reasoning_summary(),
+    });
+    sess.persist_rollout_items(&[rollout_item]).await;
     let mut stream = turn_context.client.clone().stream(&prompt).await?;
 
     let mut output = Vec::new();
@@ -1976,10 +2007,14 @@ async fn run_compact_task(
 
     sess.remove_task(&sub_id);
 
-    {
+    let rollout_item = {
         let mut state = sess.state.lock_unchecked();
         state.history.keep_last_messages(1);
-    }
+        RolloutItem::Compacted(CompactedItem {
+            message: state.history.last_agent_message(),
+        })
+    };
+    sess.persist_rollout_items(&[rollout_item]).await;
 
     let event = Event {
         id: sub_id.clone(),
@@ -2113,6 +2148,72 @@ async fn handle_response_item(
     Ok(output)
 }
 
+async fn handle_unified_exec_tool_call(
+    sess: &Session,
+    call_id: String,
+    session_id: Option<String>,
+    arguments: Vec<String>,
+    timeout_ms: Option<u64>,
+) -> ResponseInputItem {
+    let parsed_session_id = if let Some(session_id) = session_id {
+        match session_id.parse::<i32>() {
+            Ok(parsed) => Some(parsed),
+            Err(output) => {
+                return ResponseInputItem::FunctionCallOutput {
+                    call_id: call_id.to_string(),
+                    output: FunctionCallOutputPayload {
+                        content: format!("invalid session_id: {session_id} due to error {output}"),
+                        success: Some(false),
+                    },
+                };
+            }
+        }
+    } else {
+        None
+    };
+
+    let request = crate::unified_exec::UnifiedExecRequest {
+        session_id: parsed_session_id,
+        input_chunks: &arguments,
+        timeout_ms,
+    };
+
+    let result = sess.unified_exec_manager.handle_request(request).await;
+
+    let output_payload = match result {
+        Ok(value) => {
+            #[derive(Serialize)]
+            struct SerializedUnifiedExecResult<'a> {
+                session_id: Option<String>,
+                output: &'a str,
+            }
+
+            match serde_json::to_string(&SerializedUnifiedExecResult {
+                session_id: value.session_id.map(|id| id.to_string()),
+                output: &value.output,
+            }) {
+                Ok(serialized) => FunctionCallOutputPayload {
+                    content: serialized,
+                    success: Some(true),
+                },
+                Err(err) => FunctionCallOutputPayload {
+                    content: format!("failed to serialize unified exec output: {err}"),
+                    success: Some(false),
+                },
+            }
+        }
+        Err(err) => FunctionCallOutputPayload {
+            content: format!("unified exec failed: {err}"),
+            success: Some(false),
+        },
+    };
+
+    ResponseInputItem::FunctionCallOutput {
+        call_id,
+        output: output_payload,
+    }
+}
+
 async fn handle_function_call(
     sess: &Session,
     turn_context: &TurnContext,
@@ -2137,6 +2238,38 @@ async fn handle_function_call(
                 turn_diff_tracker,
                 sub_id,
                 call_id,
+            )
+            .await
+        }
+        "unified_exec" => {
+            #[derive(Deserialize)]
+            struct UnifiedExecArgs {
+                input: Vec<String>,
+                #[serde(default)]
+                session_id: Option<String>,
+                #[serde(default)]
+                timeout_ms: Option<u64>,
+            }
+
+            let args = match serde_json::from_str::<UnifiedExecArgs>(&arguments) {
+                Ok(args) => args,
+                Err(err) => {
+                    return ResponseInputItem::FunctionCallOutput {
+                        call_id,
+                        output: FunctionCallOutputPayload {
+                            content: format!("failed to parse function arguments: {err}"),
+                            success: Some(false),
+                        },
+                    };
+                }
+            };
+
+            handle_unified_exec_tool_call(
+                sess,
+                call_id,
+                args.session_id,
+                args.input,
+                args.timeout_ms,
             )
             .await
         }
@@ -2630,6 +2763,20 @@ async fn handle_sandbox_error(
     let sub_id = exec_command_context.sub_id.clone();
     let cwd = exec_command_context.cwd.clone();
 
+    // if the command timed out, we can simply return this failure to the model
+    if matches!(error, SandboxErr::Timeout) {
+        return ResponseInputItem::FunctionCallOutput {
+            call_id,
+            output: FunctionCallOutputPayload {
+                content: format!(
+                    "command timed out after {} milliseconds",
+                    params.timeout_duration().as_millis()
+                ),
+                success: Some(false),
+            },
+        };
+    }
+
     // Early out if either the user never wants to be asked for approval, or
     // we're letting the model manage escalation requests. Otherwise, continue
     match turn_context.approval_policy {
@@ -2645,20 +2792,6 @@ async fn handle_sandbox_error(
             };
         }
         AskForApproval::UnlessTrusted | AskForApproval::OnFailure => (),
-    }
-
-    // similarly, if the command timed out, we can simply return this failure to the model
-    if matches!(error, SandboxErr::Timeout) {
-        return ResponseInputItem::FunctionCallOutput {
-            call_id,
-            output: FunctionCallOutputPayload {
-                content: format!(
-                    "command timed out after {} milliseconds",
-                    params.timeout_duration().as_millis()
-                ),
-                success: Some(false),
-            },
-        };
     }
 
     // Note that when `error` is `SandboxErr::Denied`, it could be a false
@@ -2919,6 +3052,15 @@ async fn drain_to_completed(
     sub_id: &str,
     prompt: &Prompt,
 ) -> CodexResult<()> {
+    let rollout_item = RolloutItem::TurnContext(TurnContextItem {
+        cwd: turn_context.cwd.clone(),
+        approval_policy: turn_context.approval_policy,
+        sandbox_policy: turn_context.sandbox_policy.clone(),
+        model: turn_context.client.get_model(),
+        effort: turn_context.client.get_reasoning_effort(),
+        summary: turn_context.client.get_reasoning_summary(),
+    });
+    sess.persist_rollout_items(&[rollout_item]).await;
     let mut stream = turn_context.client.clone().stream(prompt).await?;
     loop {
         let maybe_event = stream.next().await;
@@ -3099,7 +3241,7 @@ mod tests {
             exit_code: 0,
             stdout: StreamOutput::new(String::new()),
             stderr: StreamOutput::new(String::new()),
-            aggregated_output: StreamOutput::new(full.clone()),
+            aggregated_output: StreamOutput::new(full),
             duration: StdDuration::from_secs(1),
         };
 
@@ -3133,7 +3275,7 @@ mod tests {
     fn model_truncation_respects_byte_budget() {
         // Construct a large output (about 100kB) so byte budget dominates
         let big_line = "x".repeat(100);
-        let full = std::iter::repeat_n(big_line.clone(), 1000)
+        let full = std::iter::repeat_n(big_line, 1000)
             .collect::<Vec<_>>()
             .join("\n");
 

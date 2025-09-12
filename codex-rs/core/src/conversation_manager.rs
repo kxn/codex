@@ -217,13 +217,13 @@ impl ConversationManager {
     /// caller's `config`). The new conversation will have a fresh id.
     pub async fn fork_conversation(
         &self,
-        conversation_history: Vec<ResponseItem>,
         num_messages_to_drop: usize,
         config: Config,
+        path: PathBuf,
     ) -> CodexResult<NewConversation> {
         // Compute the prefix up to the cut point.
-        let history =
-            truncate_after_dropping_last_messages(conversation_history, num_messages_to_drop);
+        let history = RolloutRecorder::get_rollout_history(&path).await?;
+        let history = truncate_after_dropping_last_messages(history, num_messages_to_drop);
 
         // Spawn a new conversation with the computed initial history.
         let auth_manager = self.auth_manager.clone();
@@ -238,29 +238,35 @@ impl ConversationManager {
 
 /// Return a prefix of `items` obtained by dropping the last `n` user messages
 /// and all items that follow them.
-fn truncate_after_dropping_last_messages(items: Vec<ResponseItem>, n: usize) -> InitialHistory {
+fn truncate_after_dropping_last_messages(history: InitialHistory, n: usize) -> InitialHistory {
     if n == 0 {
         let rolled: Vec<RolloutItem> = items.into_iter().map(RolloutItem::ResponseItem).collect();
         return InitialHistory::Forked(rolled);
     }
 
-    // Walk backwards counting only `user` Message items, find cut index.
-    let mut count = 0usize;
-    let mut cut_index = 0usize;
-    for (idx, item) in items.iter().enumerate().rev() {
-        if let ResponseItem::Message { role, .. } = item
+    // Work directly on rollout items, and cut the vector at the nth-from-last user message input.
+    let items: Vec<RolloutItem> = history.get_rollout_items();
+
+    // Find indices of user message inputs in rollout order.
+    let mut user_positions: Vec<usize> = Vec::new();
+    for (idx, item) in items.iter().enumerate() {
+        if let RolloutItem::ResponseItem(ResponseItem::Message { role, .. }) = item
             && role == "user"
         {
-            count += 1;
-            if count == n {
-                // Cut everything from this user message to the end.
-                cut_index = idx;
-                break;
-            }
+            user_positions.push(idx);
         }
     }
-    if cut_index == 0 {
-        // No prefix remains after dropping; start a new conversation.
+
+    // If fewer than n user messages exist, treat as empty.
+    if user_positions.len() < n {
+        return InitialHistory::New;
+    }
+
+    // Cut strictly before the nth-from-last user message (do not keep the nth itself).
+    let cut_idx = user_positions[user_positions.len() - n];
+    let rolled: Vec<RolloutItem> = items.into_iter().take(cut_idx).collect();
+
+    if rolled.is_empty() {
         InitialHistory::New
     } else {
         let rolled: Vec<RolloutItem> = items
