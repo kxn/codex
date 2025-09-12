@@ -320,14 +320,6 @@ async fn run_ratatui_app(
     // Initialize high-fidelity session event logging if enabled.
     session_log::maybe_init(&config);
 
-    let Cli {
-        prompt,
-        images,
-        resume,
-        r#continue,
-        ..
-    } = cli;
-
     let auth_manager = AuthManager::shared(config.codex_home.clone(), config.preferred_auth_method);
     let login_status = get_login_status(&config);
     let should_show_onboarding =

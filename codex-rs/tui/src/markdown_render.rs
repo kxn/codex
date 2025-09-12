@@ -13,6 +13,7 @@ use ratatui::text::Line;
 use ratatui::text::Span;
 use ratatui::text::Text;
 use std::borrow::Cow;
+use std::marker::PhantomData;
 use std::path::Path;
 
 #[derive(Clone, Debug)]
@@ -75,6 +76,7 @@ where
     scheme: Option<String>,
     cwd: Option<std::path::PathBuf>,
     in_code_block: bool,
+    phantom: PhantomData<&'a ()>,
 }
 
 impl<'a, I> Writer<'a, I>
@@ -95,6 +97,7 @@ where
             scheme,
             cwd,
             in_code_block: false,
+            phantom: PhantomData,
         }
     }
 
@@ -123,6 +126,7 @@ where
             Event::InlineHtml(html) => self.html(html, true),
             Event::FootnoteReference(_) => {}
             Event::TaskListMarker(_) => {}
+            Event::InlineMath(_) | Event::DisplayMath(_) => {}
         }
     }
 
@@ -130,7 +134,7 @@ where
         match tag {
             Tag::Paragraph => self.start_paragraph(),
             Tag::Heading { level, .. } => self.start_heading(level),
-            Tag::BlockQuote => self.start_blockquote(),
+            Tag::BlockQuote(_) => self.start_blockquote(),
             Tag::CodeBlock(kind) => {
                 let indent = match kind {
                     CodeBlockKind::Fenced(_) => None,
@@ -155,7 +159,10 @@ where
             | Tag::TableRow
             | Tag::TableCell
             | Tag::Image { .. }
-            | Tag::MetadataBlock(_) => {}
+            | Tag::MetadataBlock(_)
+            | Tag::DefinitionList
+            | Tag::DefinitionListTitle
+            | Tag::DefinitionListDefinition => {}
         }
     }
 
@@ -163,7 +170,7 @@ where
         match tag {
             TagEnd::Paragraph => self.end_paragraph(),
             TagEnd::Heading(_) => self.end_heading(),
-            TagEnd::BlockQuote => self.end_blockquote(),
+            TagEnd::BlockQuote(_) => self.end_blockquote(),
             TagEnd::CodeBlock => self.end_codeblock(),
             TagEnd::List(_) => self.end_list(),
             TagEnd::Item => {
@@ -179,7 +186,10 @@ where
             | TagEnd::TableRow
             | TagEnd::TableCell
             | TagEnd::Image
-            | TagEnd::MetadataBlock(_) => {}
+            | TagEnd::MetadataBlock(_)
+            | TagEnd::DefinitionList
+            | TagEnd::DefinitionListTitle
+            | TagEnd::DefinitionListDefinition => {}
         }
     }
 
