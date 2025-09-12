@@ -532,7 +532,6 @@ impl MessageProcessor {
 
         // Spawn the long-running reply handler.
         tokio::spawn({
-            let codex = codex.clone();
             let outgoing = outgoing.clone();
             let prompt = prompt.clone();
             let running_requests_id_to_codex_uuid = running_requests_id_to_codex_uuid.clone();

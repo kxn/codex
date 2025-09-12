@@ -1,5 +1,4 @@
 use codex_core::CodexAuth;
-use codex_protocol::mcp_protocol::AuthMode;
 use std::path::Path;
 use std::sync::LazyLock;
 use std::sync::RwLock;

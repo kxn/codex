@@ -156,7 +156,7 @@ pub enum Op {
 
     /// Request the full in-memory conversation transcript for the current session.
     /// Reply is delivered via `EventMsg::ConversationHistory`.
-    GetHistory,
+    GetPath,
 
     /// Request the list of MCP tools available across all configured servers.
     /// Reply is delivered via `EventMsg::McpListToolsResponse`.
@@ -507,7 +507,7 @@ pub enum EventMsg {
     /// Notification that the agent is shutting down.
     ShutdownComplete,
 
-    ConversationHistory(ConversationHistoryResponseEvent),
+    ConversationPath(ConversationPathResponseEvent),
 }
 
 // Individual event payload types matching each `EventMsg` variant.
@@ -703,6 +703,8 @@ pub struct UserMessageEvent {
     pub message: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub kind: Option<InputMessageKind>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub images: Option<Vec<String>>,
 }
 
 impl<T, U> From<(T, U)> for InputMessageKind

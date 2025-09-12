@@ -7,6 +7,7 @@ pub mod list;
 pub(crate) mod policy;
 pub mod recorder;
 
+pub use codex_protocol::protocol::SessionMeta;
 pub use recorder::RolloutRecorder;
 pub use recorder::RolloutRecorderParams;
 pub use recorder::SessionMeta;

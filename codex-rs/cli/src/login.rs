@@ -1,7 +1,6 @@
 use codex_common::CliConfigOverrides;
 use codex_core::CodexAuth;
 use codex_core::auth::CLIENT_ID;
-use codex_core::auth::OPENAI_API_KEY_ENV_VAR;
 use codex_core::auth::login_with_api_key;
 use codex_core::auth::logout;
 use codex_core::config::Config;
@@ -9,7 +8,6 @@ use codex_core::config::ConfigOverrides;
 use codex_login::ServerOptions;
 use codex_login::run_login_server;
 use codex_protocol::mcp_protocol::AuthMode;
-use std::env;
 use std::path::PathBuf;
 
 pub async fn login_with_chatgpt(codex_home: PathBuf) -> std::io::Result<()> {
@@ -65,14 +63,6 @@ pub async fn run_login_status(cli_config_overrides: CliConfigOverrides) -> ! {
             AuthMode::ApiKey => match auth.get_token().await {
                 Ok(api_key) => {
                     eprintln!("Logged in using an API key - {}", safe_format_key(&api_key));
-
-                    if let Ok(env_api_key) = env::var(OPENAI_API_KEY_ENV_VAR)
-                        && env_api_key == api_key
-                    {
-                        eprintln!(
-                            "   API loaded from OPENAI_API_KEY environment variable or .env file"
-                        );
-                    }
                     std::process::exit(0);
                 }
                 Err(e) => {

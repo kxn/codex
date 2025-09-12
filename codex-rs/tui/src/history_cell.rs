@@ -701,7 +701,7 @@ fn spinner(start_time: Option<Instant>) -> Span<'static> {
 
 pub(crate) fn new_active_mcp_tool_call(invocation: McpInvocation) -> PlainHistoryCell {
     let title_line = Line::from(vec!["tool".magenta(), " running...".dim()]);
-    let lines: Vec<Line> = vec![title_line, format_mcp_invocation(invocation.clone())];
+    let lines: Vec<Line> = vec![title_line, format_mcp_invocation(invocation)];
 
     PlainHistoryCell { lines }
 }
@@ -1056,6 +1056,12 @@ pub(crate) fn new_mcp_tools_output(
     PlainHistoryCell { lines }
 }
 
+pub(crate) fn new_info_event(message: String) -> PlainHistoryCell {
+    let lines: Vec<Line<'static>> =
+        vec![vec![padded_emoji("💾").green(), " ".into(), message.into()].into()];
+    PlainHistoryCell { lines }
+}
+
 pub(crate) fn new_error_event(message: String) -> PlainHistoryCell {
     // Use a hair space (U+200A) to create a subtle, near-invisible separation
     // before the text. VS16 is intentionally omitted to keep spacing tighter
@@ -1328,7 +1334,7 @@ fn format_mcp_invocation<'a>(invocation: McpInvocation) -> Line<'a> {
     let invocation_spans = vec![
         invocation.server.clone().cyan(),
         ".".into(),
-        invocation.tool.clone().cyan(),
+        invocation.tool.cyan(),
         "(".into(),
         args_str.dim(),
         ")".into(),
