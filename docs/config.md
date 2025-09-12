@@ -614,5 +614,4 @@ Options that are specific to the TUI.
 | `experimental_instructions_file` | string (path) | Replace built‑in instructions (experimental). |
 | `experimental_use_exec_command_tool` | boolean | Use experimental exec command tool. |
 | `projects.<path>.trust_level` | string | Mark project/worktree as trusted (only `"trusted"` is recognized). |
-| `preferred_auth_method` | `chatgpt` \| `apikey` | Select default auth method (default: `chatgpt`). |
 | `tools.web_search` | boolean | Enable web search tool (alias: `web_search_request`) (default: false). |
