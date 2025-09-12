@@ -10,8 +10,6 @@ use ratatui::prelude::Widget;
 use ratatui::widgets::Clear;
 use ratatui::widgets::WidgetRef;
 
-use codex_protocol::mcp_protocol::AuthMode;
-
 use crate::LoginStatus;
 use crate::onboarding::auth::AuthModeWidget;
 use crate::onboarding::auth::SignInState;
@@ -71,20 +69,19 @@ impl OnboardingScreen {
             config,
         } = args;
         let cwd = config.cwd.clone();
-        let codex_home = config.codex_home;
+        let codex_home = config.codex_home.clone();
         let mut steps: Vec<Step> = vec![Step::Welcome(WelcomeWidget {
             is_logged_in: !matches!(login_status, LoginStatus::NotAuthenticated),
         })];
         if show_login_screen {
             steps.push(Step::Auth(AuthModeWidget {
                 request_frame: tui.frame_requester(),
-                highlighted_mode: AuthMode::ChatGPT,
+                highlighted_mode: config.preferred_auth_method,
                 error: None,
                 sign_in_state: Arc::new(RwLock::new(SignInState::PickMode)),
                 codex_home: codex_home.clone(),
                 login_status,
                 auth_manager,
-                preferred_auth_method,
             }))
         }
         let is_git_repo = get_git_repo_root(&cwd).is_some();
