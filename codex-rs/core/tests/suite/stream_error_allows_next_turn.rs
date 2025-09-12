@@ -78,6 +78,7 @@ async fn continue_after_stream_error() {
         query_params: None,
         http_headers: None,
         env_http_headers: None,
+        http_proxy: None,
         default_model: None,
         request_max_retries: Some(1),
         stream_max_retries: Some(1),

@@ -1,3 +1,4 @@
+use std::env;
 use std::io::BufRead;
 use std::path::Path;
 use std::sync::OnceLock;
@@ -85,6 +86,27 @@ impl ModelClient {
         summary: ReasoningSummaryConfig,
         conversation_id: ConversationId,
     ) -> Self {
+        if let Some(proxy) = provider
+            .http_proxy
+            .as_ref()
+            .filter(|p| !p.trim().is_empty())
+        {
+            let proxy = if proxy.starts_with("http://") || proxy.starts_with("https://") {
+                proxy.clone()
+            } else {
+                format!("http://{proxy}")
+            };
+            unsafe {
+                env::set_var("HTTP_PROXY", &proxy);
+                env::set_var("HTTPS_PROXY", &proxy);
+            }
+        } else {
+            unsafe {
+                env::remove_var("HTTP_PROXY");
+                env::remove_var("HTTPS_PROXY");
+            }
+        }
+
         let client = create_client();
 
         Self {
@@ -801,6 +823,7 @@ mod tests {
             query_params: None,
             http_headers: None,
             env_http_headers: None,
+            http_proxy: None,
             default_model: None,
             request_max_retries: Some(0),
             stream_max_retries: Some(0),
@@ -863,6 +886,7 @@ mod tests {
             query_params: None,
             http_headers: None,
             env_http_headers: None,
+            http_proxy: None,
             default_model: None,
             request_max_retries: Some(0),
             stream_max_retries: Some(0),
@@ -899,6 +923,7 @@ mod tests {
             query_params: None,
             http_headers: None,
             env_http_headers: None,
+            http_proxy: None,
             default_model: None,
             request_max_retries: Some(0),
             stream_max_retries: Some(0),
@@ -1006,6 +1031,7 @@ mod tests {
                 query_params: None,
                 http_headers: None,
                 env_http_headers: None,
+                http_proxy: None,
                 default_model: None,
                 request_max_retries: Some(0),
                 stream_max_retries: Some(0),

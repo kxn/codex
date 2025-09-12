@@ -46,6 +46,7 @@ async fn run_stream(sse_body: &str) -> Vec<ResponseEvent> {
         query_params: None,
         http_headers: None,
         env_http_headers: None,
+        http_proxy: None,
         default_model: None,
         request_max_retries: Some(0),
         stream_max_retries: Some(0),

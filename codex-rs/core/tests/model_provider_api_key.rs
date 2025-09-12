@@ -14,6 +14,7 @@ fn inline_api_key_is_used() {
         query_params: None,
         http_headers: None,
         env_http_headers: None,
+        http_proxy: None,
         default_model: None,
         request_max_retries: None,
         stream_max_retries: None,
