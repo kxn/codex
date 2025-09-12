@@ -291,7 +291,6 @@ pub(crate) struct Session {
     codex_linux_sandbox_exe: Option<PathBuf>,
     user_shell: shell::Shell,
     show_raw_agent_reasoning: bool,
-    config: Arc<Config>,
 }
 
 /// The context needed for a single turn of the conversation.
@@ -493,7 +492,6 @@ impl Session {
             codex_linux_sandbox_exe: config.codex_linux_sandbox_exe.clone(),
             user_shell: default_shell,
             show_raw_agent_reasoning: config.show_raw_agent_reasoning,
-            config: config.clone(),
         });
 
         // Dispatch the SessionConfiguredEvent first and then report any errors.
