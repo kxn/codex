@@ -5,7 +5,7 @@ use crate::backtrack_helpers;
 use crate::pager_overlay::Overlay;
 use crate::tui;
 use crate::tui::TuiEvent;
-use codex_core::protocol::ConversationHistoryResponseEvent;
+use codex_core::protocol::ConversationPathResponseEvent;
 use codex_protocol::mcp_protocol::ConversationId;
 use color_eyre::eyre::Result;
 use crossterm::event::KeyCode;
@@ -262,7 +262,7 @@ impl App {
         self.chat_widget.clear_esc_backtrack_hint();
     }
 
-    /// Handle a ConversationHistory response while a backtrack is pending.
+    /// Handle a ConversationPath response while a backtrack is pending.
     /// If it matches the primed base session, fork and switch to the new conversation.
     pub(crate) async fn on_conversation_history_for_backtrack(
         &mut self,
