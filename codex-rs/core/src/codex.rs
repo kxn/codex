@@ -20,7 +20,7 @@ use codex_apply_patch::ApplyPatchAction;
 use codex_apply_patch::MaybeApplyPatchVerified;
 use codex_apply_patch::maybe_parse_apply_patch_verified;
 use codex_protocol::mcp_protocol::ConversationId;
-use codex_protocol::protocol::ConversationHistoryResponseEvent;
+use codex_protocol::protocol::ConversationPathResponseEvent;
 use codex_protocol::protocol::TaskStartedEvent;
 use codex_protocol::protocol::TurnAbortReason;
 use codex_protocol::protocol::TurnAbortedEvent;
@@ -1435,7 +1435,7 @@ async fn submission_loop(
                 sess.send_event(event).await;
                 break;
             }
-            Op::GetHistory => {
+            Op::GetPath => {
                 let sub_id = sub.id.clone();
                 // Flush rollout writes before returning the path so readers observe a consistent file.
                 let (path, rec_opt) = {
@@ -1451,13 +1451,13 @@ async fn submission_loop(
                 if let Some(rec) = rec_opt
                     && let Err(e) = rec.flush().await
                 {
-                    warn!("failed to flush rollout recorder before GetHistory: {e}");
+                    warn!("failed to flush rollout recorder before GetPath: {e}");
                 }
                 let event = Event {
                     id: sub_id.clone(),
-                    msg: EventMsg::ConversationHistory(ConversationHistoryResponseEvent {
+                    msg: EventMsg::ConversationPath(ConversationPathResponseEvent {
                         conversation_id: sess.conversation_id,
-                        entries: sess.state.lock_unchecked().history.contents(),
+                        path,
                     }),
                 };
                 sess.send_event(event).await;

@@ -406,12 +406,6 @@ pub struct UserInfoResponse {
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
 #[serde(rename_all = "camelCase")]
-pub struct GetUserAgentResponse {
-    pub user_agent: String,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
-#[serde(rename_all = "camelCase")]
 pub struct GetUserSavedConfigResponse {
     pub config: UserSavedConfig,
 }

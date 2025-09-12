@@ -154,8 +154,8 @@ pub enum Op {
     /// Request a single history entry identified by `log_id` + `offset`.
     GetHistoryEntryRequest { offset: usize, log_id: u64 },
 
-    /// Request the full in-memory conversation transcript for the current session.
-    /// Reply is delivered via `EventMsg::ConversationHistory`.
+    /// Request the path to the on-disk transcript for the current session.
+    /// Reply is delivered via `EventMsg::ConversationPath`.
     GetPath,
 
     /// Request the list of MCP tools available across all configured servers.
@@ -806,12 +806,12 @@ pub struct WebSearchEndEvent {
     pub query: String,
 }
 
-/// Response payload for `Op::GetHistory` containing the current session's
-/// in-memory transcript.
+/// Response payload for `Op::GetPath` containing the path to the current
+/// session's transcript on disk.
 #[derive(Debug, Clone, Deserialize, Serialize, TS)]
-pub struct ConversationHistoryResponseEvent {
+pub struct ConversationPathResponseEvent {
     pub conversation_id: ConversationId,
-    pub entries: Vec<ResponseItem>,
+    pub path: PathBuf,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, TS)]
