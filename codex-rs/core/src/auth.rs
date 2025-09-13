@@ -404,7 +404,6 @@ use std::sync::RwLock;
 /// Internal cached auth state.
 #[derive(Clone, Debug)]
 struct CachedAuth {
-    preferred_auth_mode: AuthMode,
     auth: Option<CodexAuth>,
 }
 

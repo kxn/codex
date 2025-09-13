@@ -429,7 +429,8 @@ async fn overrides_turn_context_but_keeps_cached_prefix_and_key_constant() {
   <sandbox_mode>workspace-write</sandbox_mode>
   <network_access>enabled</network_access>
     <model>o3</model>
-  </environment_context>"#.to_string();
+  </environment_context>"#
+        .to_string();
     let expected_env_msg_2 = serde_json::json!({
         "type": "message",
         "role": "user",
