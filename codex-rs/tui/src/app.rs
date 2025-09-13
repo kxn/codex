@@ -14,6 +14,7 @@ use codex_core::config::Config;
 use codex_core::config::persist_model_selection;
 use codex_core::model_family::find_family_for_model;
 use codex_core::protocol::TokenUsage;
+use codex_core::protocol_config_types::ReasoningEffort as ReasoningEffortConfig;
 use color_eyre::eyre::Result;
 use color_eyre::eyre::WrapErr;
 use crossterm::event::KeyCode;
@@ -297,7 +298,7 @@ impl App {
                 self.chat_widget.apply_file_search_result(query, matches);
             }
             AppEvent::UpdateReasoningEffort(effort) => {
-                self.chat_widget.set_reasoning_effort(effort);
+                self.on_update_reasoning_effort(effort);
             }
             AppEvent::UpdateModel(model) => {
                 self.chat_widget.set_model(model.clone());
@@ -513,5 +514,69 @@ impl App {
                 // Ignore Release key events.
             }
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::app_backtrack::BacktrackState;
+    use crate::chatwidget::tests::make_chatwidget_manual_with_sender;
+    use crate::file_search::FileSearchManager;
+    use codex_core::CodexAuth;
+    use codex_core::ConversationManager;
+    use ratatui::text::Line;
+    use std::sync::Arc;
+    use std::sync::atomic::AtomicBool;
+
+    fn make_test_app() -> App {
+        let (chat_widget, app_event_tx, _rx, _op_rx) = make_chatwidget_manual_with_sender();
+        let config = chat_widget.config_ref().clone();
+
+        let server = Arc::new(ConversationManager::with_auth(CodexAuth::from_api_key(
+            "Test API Key",
+        )));
+        let file_search = FileSearchManager::new(config.cwd.clone(), app_event_tx.clone());
+
+        App {
+            server,
+            app_event_tx,
+            chat_widget,
+            config,
+            active_profile: None,
+            model_saved_to_profile: false,
+            model_saved_to_global: false,
+            file_search,
+            transcript_lines: Vec::<Line<'static>>::new(),
+            overlay: None,
+            deferred_history_lines: Vec::new(),
+            has_emitted_history_lines: false,
+            enhanced_keys_supported: false,
+            commit_anim_running: Arc::new(AtomicBool::new(false)),
+            backtrack: BacktrackState::default(),
+        }
+    }
+
+    #[test]
+    fn update_reasoning_effort_updates_config_and_resets_flags() {
+        let mut app = make_test_app();
+        app.model_saved_to_profile = true;
+        app.model_saved_to_global = true;
+        app.config.model_reasoning_effort = Some(ReasoningEffortConfig::Medium);
+        app.chat_widget
+            .set_reasoning_effort(Some(ReasoningEffortConfig::Medium));
+
+        app.on_update_reasoning_effort(Some(ReasoningEffortConfig::High));
+
+        assert_eq!(
+            app.config.model_reasoning_effort,
+            Some(ReasoningEffortConfig::High)
+        );
+        assert_eq!(
+            app.chat_widget.config_ref().model_reasoning_effort,
+            Some(ReasoningEffortConfig::High)
+        );
+        assert!(!app.model_saved_to_profile);
+        assert!(!app.model_saved_to_global);
     }
 }

@@ -5,6 +5,7 @@ use codex_core::ConversationManager;
 use codex_core::ModelProviderInfo;
 use codex_core::NewConversation;
 use codex_core::built_in_model_providers;
+use codex_core::protocol::ErrorEvent;
 use codex_core::protocol::EventMsg;
 use codex_core::protocol::InputItem;
 use codex_core::protocol::Op;
@@ -14,13 +15,20 @@ use core_test_support::load_default_config_for_test;
 use core_test_support::wait_for_event;
 use serde_json::Value;
 use tempfile::TempDir;
+use wiremock::BodyPrintLimit;
 use wiremock::Mock;
 use wiremock::MockServer;
+use wiremock::Request;
+use wiremock::Respond;
 use wiremock::ResponseTemplate;
 use wiremock::matchers::method;
 use wiremock::matchers::path;
 
 use pretty_assertions::assert_eq;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::sync::atomic::AtomicUsize;
+use std::sync::atomic::Ordering;
 
 // --- Test helpers -----------------------------------------------------------
 
@@ -51,6 +59,22 @@ fn ev_completed(id: &str) -> Value {
     })
 }
 
+fn ev_completed_with_tokens(id: &str, total_tokens: u64) -> Value {
+    serde_json::json!({
+        "type": "response.completed",
+        "response": {
+            "id": id,
+            "usage": {
+                "input_tokens": total_tokens,
+                "input_tokens_details": null,
+                "output_tokens": 0,
+                "output_tokens_details": null,
+                "total_tokens": total_tokens
+            }
+        }
+    })
+}
+
 /// Convenience: SSE event for a single assistant message output item.
 fn ev_assistant_message(id: &str, text: &str) -> Value {
     serde_json::json!({
@@ -60,6 +84,18 @@ fn ev_assistant_message(id: &str, text: &str) -> Value {
             "role": "assistant",
             "id": id,
             "content": [{"type": "output_text", "text": text}]
+        }
+    })
+}
+
+fn ev_function_call(call_id: &str, name: &str, arguments: &str) -> Value {
+    serde_json::json!({
+        "type": "response.output_item.done",
+        "item": {
+            "type": "function_call",
+            "call_id": call_id,
+            "name": name,
+            "arguments": arguments
         }
     })
 }
@@ -83,10 +119,28 @@ where
         .await;
 }
 
+async fn start_mock_server() -> MockServer {
+    MockServer::builder()
+        .body_print_limit(BodyPrintLimit::Limited(80_000))
+        .start()
+        .await
+}
+
 const FIRST_REPLY: &str = "FIRST_REPLY";
 const SUMMARY_TEXT: &str = "SUMMARY_ONLY_CONTEXT";
 const SUMMARIZE_TRIGGER: &str = "Start Summarization";
 const THIRD_USER_MSG: &str = "next turn";
+const AUTO_SUMMARY_TEXT: &str = "AUTO_SUMMARY";
+const FIRST_AUTO_MSG: &str = "token limit start";
+const SECOND_AUTO_MSG: &str = "token limit push";
+const STILL_TOO_BIG_REPLY: &str = "STILL_TOO_BIG";
+const MULTI_AUTO_MSG: &str = "multi auto";
+const SECOND_LARGE_REPLY: &str = "SECOND_LARGE_REPLY";
+const FIRST_AUTO_SUMMARY: &str = "FIRST_AUTO_SUMMARY";
+const SECOND_AUTO_SUMMARY: &str = "SECOND_AUTO_SUMMARY";
+const FINAL_REPLY: &str = "FINAL_REPLY";
+const DUMMY_FUNCTION_NAME: &str = "unsupported_tool";
+const DUMMY_CALL_ID: &str = "call-multi-auto";
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
 async fn summarize_context_three_requests_and_instructions() {
@@ -98,7 +152,7 @@ async fn summarize_context_three_requests_and_instructions() {
     }
 
     // Set up a mock server that we can inspect after the run.
-    let server = MockServer::start().await;
+    let server = start_mock_server().await;
 
     // SSE 1: assistant replies normally so it is recorded in history.
     let sse1 = sse(vec![
@@ -143,6 +197,7 @@ async fn summarize_context_three_requests_and_instructions() {
     let home = TempDir::new().unwrap();
     let mut config = load_default_config_for_test(&home);
     config.model_provider = model_provider;
+    config.model_auto_compact_token_limit = Some(200_000);
     let conversation_manager = ConversationManager::with_auth(CodexAuth::from_api_key("dummy"));
     let NewConversation {
         conversation: codex,
@@ -197,7 +252,7 @@ async fn summarize_context_three_requests_and_instructions() {
         "summarization should override base instructions"
     );
     assert!(
-        instr2.contains("You are a summarization assistant"),
+        instr2.contains("You have exceeded the maximum number of tokens"),
         "summarization instructions not applied"
     );
 
@@ -208,14 +263,17 @@ async fn summarize_context_three_requests_and_instructions() {
     assert_eq!(last2.get("type").unwrap().as_str().unwrap(), "message");
     assert_eq!(last2.get("role").unwrap().as_str().unwrap(), "user");
     let text2 = last2["content"][0]["text"].as_str().unwrap();
-    assert!(text2.contains(SUMMARIZE_TRIGGER));
+    assert!(
+        text2.contains(SUMMARIZE_TRIGGER),
+        "expected summarize trigger, got `{text2}`"
+    );
 
-    // Third request must contain only the summary from step 2 as prior history plus new user msg.
+    // Third request must contain the refreshed instructions, bridge summary message and new user msg.
     let input3 = body3.get("input").and_then(|v| v.as_array()).unwrap();
     println!("third request body: {body3}");
     assert!(
-        input3.len() >= 2,
-        "expected summary + new user message in third request"
+        input3.len() >= 3,
+        "expected refreshed context and new user message in third request"
     );
 
     // Collect all (role, text) message tuples.
@@ -231,24 +289,35 @@ async fn summarize_context_three_requests_and_instructions() {
         }
     }
 
-    // Exactly one assistant message should remain after compaction and the new user message is present.
+    // No previous assistant messages should remain and the new user message is present.
     let assistant_count = messages.iter().filter(|(r, _)| r == "assistant").count();
-    assert_eq!(
-        assistant_count, 1,
-        "exactly one assistant message should remain after compaction"
-    );
+    assert_eq!(assistant_count, 0, "assistant history should be cleared");
     assert!(
         messages
             .iter()
             .any(|(r, t)| r == "user" && t == THIRD_USER_MSG),
         "third request should include the new user message"
     );
+    let Some((_, bridge_text)) = messages.iter().find(|(role, text)| {
+        role == "user"
+            && (text.contains("Here were the user messages")
+                || text.contains("Here are all the user messages"))
+            && text.contains(SUMMARY_TEXT)
+    }) else {
+        panic!("expected a bridge message containing the summary");
+    };
     assert!(
-        !messages.iter().any(|(_, t)| t.contains("hello world")),
-        "third request should not include the original user input"
+        bridge_text.contains("hello world"),
+        "bridge should capture earlier user messages"
     );
     assert!(
-        !messages.iter().any(|(_, t)| t.contains(SUMMARIZE_TRIGGER)),
+        !bridge_text.contains(SUMMARIZE_TRIGGER),
+        "bridge text should not echo the summarize trigger"
+    );
+    assert!(
+        !messages
+            .iter()
+            .any(|(_, text)| text.contains(SUMMARIZE_TRIGGER)),
         "third request should not include the summarize trigger"
     );
 

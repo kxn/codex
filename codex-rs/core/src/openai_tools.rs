@@ -339,7 +339,7 @@ The shell tool is used to execute shell commands.
 
     OpenAiTool::Function(ResponsesApiTool {
         name: "shell".to_string(),
-        description,
+        description: "Runs a shell command and returns its output.".to_string(),
         strict: false,
         parameters: JsonSchema::Object {
             properties,
@@ -1193,21 +1193,7 @@ The shell tool is used to execute shell commands.
         };
         assert_eq!(name, "shell");
 
-        let expected = r#"
-The shell tool is used to execute shell commands.
-- When invoking the shell tool, your call will be running in a sandbox, and some shell commands (including apply_patch) will require escalated permissions:
-  - Types of actions that require escalated privileges:
-    - Writing files
-    - Applying patches
-  - Examples of commands that require escalated privileges:
-    - apply_patch
-    - git commit
-    - npm install or pnpm install
-    - cargo build
-    - cargo test
-- When invoking a command that will require escalated privileges:
-  - Provide the with_escalated_permissions parameter with the boolean value true
-  - Include a short, 1 sentence explanation for why we need to run with_escalated_permissions in the justification parameter"#;
+        let expected = "Runs a shell command and returns its output.";
         assert_eq!(description, expected);
     }
 

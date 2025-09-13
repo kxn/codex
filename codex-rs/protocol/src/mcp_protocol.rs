@@ -410,6 +410,22 @@ pub struct GetUserSavedConfigResponse {
     pub config: UserSavedConfig,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct SetDefaultModelParams {
+    /// If set to None, this means `model` should be cleared in config.toml.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    /// If set to None, this means `model_reasoning_effort` should be cleared
+    /// in config.toml.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reasoning_effort: Option<ReasoningEffort>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, TS)]
+#[serde(rename_all = "camelCase")]
+pub struct SetDefaultModelResponse {}
+
 /// UserSavedConfig contains a subset of the config. It is meant to expose mcp
 /// client-configurable settings that can be specified in the NewConversation
 /// and SendUserTurn requests.
@@ -499,7 +515,8 @@ pub struct SendUserTurnParams {
     pub approval_policy: AskForApproval,
     pub sandbox_policy: SandboxPolicy,
     pub model: String,
-    pub effort: ReasoningEffort,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<ReasoningEffort>,
     pub summary: ReasoningSummary,
 }
 

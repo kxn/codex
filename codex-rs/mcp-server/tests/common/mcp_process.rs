@@ -24,6 +24,7 @@ use codex_protocol::mcp_protocol::RemoveConversationListenerParams;
 use codex_protocol::mcp_protocol::ResumeConversationParams;
 use codex_protocol::mcp_protocol::SendUserMessageParams;
 use codex_protocol::mcp_protocol::SendUserTurnParams;
+use codex_protocol::mcp_protocol::SetDefaultModelParams;
 
 use mcp_types::CallToolRequestParams;
 use mcp_types::ClientCapabilities;
