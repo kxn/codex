@@ -22,6 +22,7 @@ use codex_protocol::config_types::ReasoningEffort;
 use codex_protocol::config_types::ReasoningSummary;
 use codex_protocol::config_types::SandboxMode;
 use codex_protocol::config_types::Verbosity;
+use codex_protocol::mcp_protocol::AuthMode;
 use codex_protocol::mcp_protocol::Tools;
 use codex_protocol::mcp_protocol::UserSavedConfig;
 use dirs::home_dir;
@@ -869,6 +870,10 @@ impl Config {
             .or(cfg.tools.as_ref().and_then(|t| t.view_image))
             .unwrap_or(true);
 
+        let review_model = override_review_model
+            .or(cfg.review_model)
+            .unwrap_or_else(default_review_model);
+
         let model = model
             .or(config_profile.model)
             .or(cfg.model)
@@ -1050,7 +1055,7 @@ fn default_model() -> String {
 }
 
 fn default_review_model() -> String {
-    OPENAI_DEFAULT_REVIEW_MODEL.to_string()
+    OPENAI_DEFAULT_MODEL.to_string()
 }
 
 /// Returns the path to the Codex configuration directory, which can be

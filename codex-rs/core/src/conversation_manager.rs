@@ -250,9 +250,10 @@ fn truncate_after_dropping_last_messages(history: InitialHistory, n: usize) -> I
     let mut user_positions = Vec::new();
     for (idx, item) in items.iter().enumerate() {
         if let RolloutItem::ResponseItem(ResponseItem::Message { role, .. }) = item
-            && role == "user" {
-                user_positions.push(idx);
-            }
+            && role == "user"
+        {
+            user_positions.push(idx);
+        }
     }
 
     if user_positions.len() < n {

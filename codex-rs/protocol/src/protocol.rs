@@ -592,7 +592,7 @@ pub struct ReviewFinding {
     pub code_location: ReviewCodeLocation,
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, TS)]
+#[derive(Debug, Clone, Deserialize, Serialize, Default, PartialEq, TS)]
 pub struct ReviewOutputEvent {
     pub findings: Vec<ReviewFinding>,
     pub overall_correctness: String,

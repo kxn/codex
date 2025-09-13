@@ -17,7 +17,10 @@ use std::time::Duration;
 
 use codex_protocol::mcp_protocol::AuthMode;
 
-use crate::token_data::{KnownPlan, PlanType, TokenData, parse_id_token};
+use crate::token_data::KnownPlan;
+use crate::token_data::PlanType;
+use crate::token_data::TokenData;
+use crate::token_data::parse_id_token;
 
 #[derive(Debug, Clone)]
 pub struct CodexAuth {
@@ -405,6 +408,7 @@ use std::sync::RwLock;
 #[derive(Clone, Debug)]
 struct CachedAuth {
     auth: Option<CodexAuth>,
+    preferred_auth_mode: AuthMode,
 }
 
 #[cfg(test)]

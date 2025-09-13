@@ -75,7 +75,7 @@ pub fn builtin_model_presets() -> &'static [ModelPreset] {
             label: "gpt-5 high new",
             description: "— our latest release tuned to rely on the model's built-in reasoning defaults",
             model: "gpt-5-high-new",
-            effort: ReasoningEffort::Medium,
+            effort: Some(ReasoningEffort::Medium),
         },
     ];
     PRESETS

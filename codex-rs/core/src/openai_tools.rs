@@ -289,10 +289,7 @@ fn create_shell_tool_for_sandbox(sandbox_policy: &SandboxPolicy) -> OpenAiTool {
     }
 
     let description = match sandbox_policy {
-        SandboxPolicy::WorkspaceWrite {
-            network_access,
-            ..
-        } => {
+        SandboxPolicy::WorkspaceWrite { network_access, .. } => {
             let network_line = if !network_access {
                 "\n    - Commands that require network access"
             } else {
@@ -315,31 +312,14 @@ The shell tool is used to execute shell commands.
   - Include a short, 1 sentence explanation for why we need to run with_escalated_permissions in the justification parameter."#,
             )
         }
-        SandboxPolicy::DangerFullAccess => {
+        SandboxPolicy::DangerFullAccess | SandboxPolicy::ReadOnly => {
             "Runs a shell command and returns its output.".to_string()
-        }
-        SandboxPolicy::ReadOnly => {
-            r#"
-The shell tool is used to execute shell commands.
-- When invoking the shell tool, your call will be running in a sandbox, and some shell commands (including apply_patch) will require escalated permissions:
-  - Types of actions that require escalated privileges:
-    - Writing files
-    - Applying patches
-  - Examples of commands that require escalated privileges:
-    - apply_patch
-    - git commit
-    - npm install or pnpm install
-    - cargo build
-    - cargo test
-- When invoking a command that will require escalated privileges:
-  - Provide the with_escalated_permissions parameter with the boolean value true
-  - Include a short, 1 sentence explanation for why we need to run with_escalated_permissions in the justification parameter"#.to_string()
         }
     };
 
     OpenAiTool::Function(ResponsesApiTool {
         name: "shell".to_string(),
-        description: "Runs a shell command and returns its output.".to_string(),
+        description,
         strict: false,
         parameters: JsonSchema::Object {
             properties,
