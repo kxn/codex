@@ -359,9 +359,12 @@ fn bind_server(port: u16) -> io::Result<Server> {
             Ok(server) => return Ok(server),
             Err(err) => {
                 attempts += 1;
-                let is_addr_in_use = err
-                    .downcast_ref::<io::Error>()
+                let io_err = err.downcast_ref::<io::Error>();
+                let is_addr_in_use = io_err
                     .map(|io_err| io_err.kind() == io::ErrorKind::AddrInUse)
+                    .unwrap_or(false);
+                let is_permission_denied = io_err
+                    .map(|io_err| io_err.kind() == io::ErrorKind::PermissionDenied)
                     .unwrap_or(false);
 
                 // If the address is in use, there is probably another instance of the login server
@@ -384,6 +387,13 @@ fn bind_server(port: u16) -> io::Result<Server> {
                     }
 
                     continue;
+                }
+
+                if is_permission_denied {
+                    eprintln!(
+                        "Port {bind_address} is not available due to permission error; using a random port instead",
+                    );
+                    return Server::http("127.0.0.1:0").map_err(io::Error::other);
                 }
 
                 return Err(io::Error::other(err));
