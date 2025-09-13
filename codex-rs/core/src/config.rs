@@ -411,6 +411,7 @@ pub async fn persist_model_selection(
     codex_home: &Path,
     active_profile: Option<&str>,
     model: &str,
+    model_provider: &str,
     effort: Option<ReasoningEffort>,
 ) -> anyhow::Result<()> {
     let config_path = codex_home.join(CONFIG_TOML_FILE);
@@ -429,12 +430,14 @@ pub async fn persist_model_selection(
     if let Some(profile_name) = active_profile {
         let profile_table = ensure_profile_table(&mut doc, profile_name)?;
         profile_table["model"] = toml_edit::value(model);
+        profile_table["model_provider"] = toml_edit::value(model_provider);
         if let Some(effort) = effort {
             profile_table["model_reasoning_effort"] = toml_edit::value(effort.to_string());
         }
     } else {
         let table = doc.as_table_mut();
         table["model"] = toml_edit::value(model);
+        table["model_provider"] = toml_edit::value(model_provider);
         if let Some(effort) = effort {
             table["model_reasoning_effort"] = toml_edit::value(effort.to_string());
         }
@@ -1168,6 +1171,7 @@ exclude_slash_tmp = true
             codex_home.path(),
             None,
             "gpt-5-high-new",
+            "openai",
             Some(ReasoningEffort::High),
         )
         .await?;
@@ -1177,6 +1181,7 @@ exclude_slash_tmp = true
         let parsed: ConfigToml = toml::from_str(&serialized)?;
 
         assert_eq!(parsed.model.as_deref(), Some("gpt-5-high-new"));
+        assert_eq!(parsed.model_provider.as_deref(), Some("openai"));
         assert_eq!(parsed.model_reasoning_effort, Some(ReasoningEffort::High));
 
         Ok(())
@@ -1203,6 +1208,7 @@ model = "gpt-4.1"
             codex_home.path(),
             None,
             "o4-mini",
+            "openai",
             Some(ReasoningEffort::High),
         )
         .await?;
@@ -1211,6 +1217,7 @@ model = "gpt-4.1"
         let parsed: ConfigToml = toml::from_str(&serialized)?;
 
         assert_eq!(parsed.model.as_deref(), Some("o4-mini"));
+        assert_eq!(parsed.model_provider.as_deref(), Some("openai"));
         assert_eq!(parsed.model_reasoning_effort, Some(ReasoningEffort::High));
         assert_eq!(
             parsed
@@ -1231,6 +1238,7 @@ model = "gpt-4.1"
             codex_home.path(),
             Some("dev"),
             "gpt-5-high-new",
+            "openai",
             Some(ReasoningEffort::Low),
         )
         .await?;
@@ -1244,6 +1252,7 @@ model = "gpt-4.1"
             .expect("profile should be created");
 
         assert_eq!(profile.model.as_deref(), Some("gpt-5-high-new"));
+        assert_eq!(profile.model_provider.as_deref(), Some("openai"));
         assert_eq!(profile.model_reasoning_effort, Some(ReasoningEffort::Low));
 
         Ok(())
@@ -1271,6 +1280,7 @@ model = "gpt-5"
             codex_home.path(),
             Some("dev"),
             "o4-high",
+            "openai",
             Some(ReasoningEffort::Medium),
         )
         .await?;
@@ -1283,6 +1293,7 @@ model = "gpt-5"
             .get("dev")
             .expect("dev profile should survive updates");
         assert_eq!(dev_profile.model.as_deref(), Some("o4-high"));
+        assert_eq!(dev_profile.model_provider.as_deref(), Some("openai"));
         assert_eq!(
             dev_profile.model_reasoning_effort,
             Some(ReasoningEffort::Medium)

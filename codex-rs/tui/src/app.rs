@@ -310,7 +310,20 @@ impl App {
                 self.show_model_save_hint();
             }
             AppEvent::UpdateModelProvider(id) => {
-                self.chat_widget.set_model_provider(id);
+                self.chat_widget.set_model_provider(id.clone());
+                if let Some(provider) = self.config.model_providers.get(&id).cloned() {
+                    if let Some(m) = provider.default_model.clone() {
+                        self.config.model = m.clone();
+                        if let Some(family) = find_family_for_model(&m) {
+                            self.config.model_family = family;
+                        }
+                    }
+                    self.config.model_provider_id = id;
+                    self.config.model_provider = provider;
+                }
+                self.model_saved_to_profile = false;
+                self.model_saved_to_global = false;
+                self.show_provider_save_hint();
             }
             AppEvent::UpdateAskForApprovalPolicy(policy) => {
                 self.chat_widget.set_approval_policy(policy);
@@ -330,11 +343,24 @@ impl App {
         let model = self.config.model.clone();
         if self.active_profile.is_some() {
             self.chat_widget.add_info_message(format!(
-                "Model switched to {model}. Press Ctrl+S to save it for this profile, then press Ctrl+S again to set it as your global default."
+                "Model switched to {model}. Press Ctrl+S to save it for this profile, then press Ctrl+S again to set it as your global default.",
             ));
         } else {
             self.chat_widget.add_info_message(format!(
-                "Model switched to {model}. Press Ctrl+S to save it as your global default."
+                "Model switched to {model}. Press Ctrl+S to save it as your global default.",
+            ));
+        }
+    }
+
+    fn show_provider_save_hint(&mut self) {
+        let provider = self.config.model_provider.name.clone();
+        if self.active_profile.is_some() {
+            self.chat_widget.add_info_message(format!(
+                "Provider switched to {provider}. Press Ctrl+S to save it for this profile, then press Ctrl+S again to set it as your global default.",
+            ));
+        } else {
+            self.chat_widget.add_info_message(format!(
+                "Provider switched to {provider}. Press Ctrl+S to save it as your global default.",
             ));
         }
     }
@@ -359,53 +385,63 @@ impl App {
         };
 
         let model = self.config.model.clone();
+        let provider_id = self.config.model_provider_id.clone();
+        let provider_name = self.config.model_provider.name.clone();
         let effort = self.config.model_reasoning_effort;
         let codex_home = self.config.codex_home.clone();
 
         match scope {
             SaveScope::Profile(profile) => {
-                match persist_model_selection(&codex_home, Some(profile), &model, Some(effort))
-                    .await
+                match persist_model_selection(
+                    &codex_home,
+                    Some(profile),
+                    &model,
+                    &provider_id,
+                    Some(effort),
+                )
+                .await
                 {
                     Ok(()) => {
                         self.model_saved_to_profile = true;
                         self.chat_widget.add_info_message(format!(
-                            "Saved model {model} ({effort}) for profile `{profile}`. Press Ctrl+S again to make this your global default."
+                            "Saved provider {provider_name} and model {model} ({effort}) for profile `{profile}`. Press Ctrl+S again to make this your global default.",
                         ));
                     }
                     Err(err) => {
                         tracing::error!(
                             error = %err,
-                            "failed to persist model selection via shortcut"
+                            "failed to persist model selection via shortcut",
                         );
                         self.chat_widget.add_error_message(format!(
-                            "Failed to save model preference for profile `{profile}`: {err}"
+                            "Failed to save provider and model preference for profile `{profile}`: {err}",
                         ));
                     }
                 }
             }
             SaveScope::Global => {
-                match persist_model_selection(&codex_home, None, &model, Some(effort)).await {
+                match persist_model_selection(&codex_home, None, &model, &provider_id, Some(effort))
+                    .await
+                {
                     Ok(()) => {
                         self.model_saved_to_global = true;
                         self.chat_widget.add_info_message(format!(
-                            "Saved model {model} ({effort}) as your global default."
+                            "Saved provider {provider_name} and model {model} ({effort}) as your global default.",
                         ));
                     }
                     Err(err) => {
                         tracing::error!(
                             error = %err,
-                            "failed to persist global model selection via shortcut"
+                            "failed to persist global model selection via shortcut",
                         );
                         self.chat_widget.add_error_message(format!(
-                            "Failed to save global model preference: {err}"
+                            "Failed to save global provider and model preference: {err}",
                         ));
                     }
                 }
             }
             SaveScope::AlreadySaved => {
                 self.chat_widget.add_info_message(
-                    "Model preference already saved globally; no further action needed."
+                    "Provider and model preferences already saved globally; no further action needed."
                         .to_string(),
                 );
             }
