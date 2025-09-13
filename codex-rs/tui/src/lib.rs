@@ -384,6 +384,7 @@ async fn run_ratatui_app(
                 &config.codex_home,
                 active_profile.as_deref(),
                 &config.model,
+                &config.model_provider_id,
                 None,
             )
             .await
