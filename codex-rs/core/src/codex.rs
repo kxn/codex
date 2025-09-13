@@ -709,7 +709,7 @@ impl Session {
             Some(turn_context.approval_policy),
             Some(turn_context.sandbox_policy.clone()),
             Some(self.user_shell.clone()),
-            Some(turn_context.client.get_provider().name),
+            Some(turn_context.client.get_provider_id()),
             Some(turn_context.client.get_model()),
         )));
         items

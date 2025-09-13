@@ -391,6 +391,10 @@ impl ModelClient {
         self.provider.clone()
     }
 
+    pub fn get_provider_id(&self) -> String {
+        self.config.model_provider_id.clone()
+    }
+
     /// Returns the currently configured model slug.
     pub fn get_model(&self) -> String {
         self.config.model.clone()
