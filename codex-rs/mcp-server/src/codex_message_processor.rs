@@ -11,11 +11,16 @@ use codex_core::NewConversation;
 use codex_core::RolloutRecorder;
 use codex_core::SessionMeta;
 use codex_core::auth::CLIENT_ID;
+use codex_core::auth::get_auth_file;
 use codex_core::auth::login_with_api_key;
+use codex_core::auth::try_read_auth_json;
 use codex_core::config::Config;
 use codex_core::config::ConfigOverrides;
 use codex_core::config::ConfigToml;
 use codex_core::config::load_config_as_toml;
+use codex_core::config_edit::CONFIG_KEY_EFFORT;
+use codex_core::config_edit::CONFIG_KEY_MODEL;
+use codex_core::config_edit::persist_non_null_overrides;
 use codex_core::default_client::get_codex_user_agent;
 use codex_core::exec::ExecParams;
 use codex_core::exec_env::create_env;
@@ -508,7 +513,7 @@ impl CodexMessageProcessor {
             (&[CONFIG_KEY_EFFORT], effort_str.as_deref()),
         ];
 
-        match persist_overrides_and_clear_if_none(
+        match persist_non_null_overrides(
             &self.config.codex_home,
             self.config.active_profile.as_deref(),
             &overrides,
