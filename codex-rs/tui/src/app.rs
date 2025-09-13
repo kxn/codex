@@ -340,6 +340,14 @@ impl App {
         self.chat_widget.token_usage()
     }
 
+    fn on_update_reasoning_effort(&mut self, effort: Option<ReasoningEffortConfig>) {
+        self.chat_widget.set_reasoning_effort(effort);
+        self.config.model_reasoning_effort = effort;
+        self.model_saved_to_profile = false;
+        self.model_saved_to_global = false;
+        self.show_model_save_hint();
+    }
+
     fn show_model_save_hint(&mut self) {
         let model = self.config.model.clone();
         if self.active_profile.is_some() {
@@ -389,6 +397,9 @@ impl App {
         let provider_id = self.config.model_provider_id.clone();
         let provider_name = self.config.model_provider.name.clone();
         let effort = self.config.model_reasoning_effort;
+        let effort_str = effort
+            .map(|e| e.to_string())
+            .unwrap_or_else(|| "none".to_string());
         let codex_home = self.config.codex_home.clone();
 
         match scope {
@@ -398,14 +409,14 @@ impl App {
                     Some(profile),
                     &model,
                     &provider_id,
-                    Some(effort),
+                    effort,
                 )
                 .await
                 {
                     Ok(()) => {
                         self.model_saved_to_profile = true;
                         self.chat_widget.add_info_message(format!(
-                            "Saved provider {provider_name} and model {model} ({effort}) for profile `{profile}`. Press Ctrl+S again to make this your global default.",
+                            "Saved provider {provider_name} and model {model} ({effort_str}) for profile `{profile}`. Press Ctrl+S again to make this your global default.",
                         ));
                     }
                     Err(err) => {
@@ -420,13 +431,12 @@ impl App {
                 }
             }
             SaveScope::Global => {
-                match persist_model_selection(&codex_home, None, &model, &provider_id, Some(effort))
-                    .await
+                match persist_model_selection(&codex_home, None, &model, &provider_id, effort).await
                 {
                     Ok(()) => {
                         self.model_saved_to_global = true;
                         self.chat_widget.add_info_message(format!(
-                            "Saved provider {provider_name} and model {model} ({effort}) as your global default.",
+                            "Saved provider {provider_name} and model {model} ({effort_str}) as your global default.",
                         ));
                     }
                     Err(err) => {

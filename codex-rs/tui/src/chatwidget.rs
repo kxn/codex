@@ -1208,11 +1208,7 @@ impl ChatWidget {
                     tx.send(AppEvent::UpdateModel(model_slug.clone()));
                     tx.send(AppEvent::UpdateReasoningEffort(effort));
                     tracing::info!(
-                        "New model: {}, New effort: {}, Current model: {}, Current effort: {}",
-                        model_slug.clone(),
-                        effort,
-                        current_model,
-                        current_effort
+                        "New model: {model_slug}, New effort: {effort:?}, Current model: {current_model}, Current effort: {current_effort:?}"
                     );
                 })];
                 items.push(SelectionItem {
@@ -1247,7 +1243,7 @@ impl ChatWidget {
                     ReasoningEffortConfig::High => "high",
                 };
                 let name = format!("{model_slug} {effort_label}");
-                let is_current = model_slug == current_model && effort == current_effort;
+                let is_current = model_slug == current_model && Some(effort) == current_effort;
                 let model_for_action = model_slug.clone();
                 let actions: Vec<SelectionAction> = vec![Box::new(move |tx| {
                     tx.send(AppEvent::CodexOp(Op::OverrideTurnContext {
@@ -1256,11 +1252,11 @@ impl ChatWidget {
                         sandbox_policy: None,
                         model_provider: None,
                         model: Some(model_for_action.clone()),
-                        effort: Some(effort),
+                        effort: Some(Some(effort)),
                         summary: None,
                     }));
                     tx.send(AppEvent::UpdateModel(model_for_action.clone()));
-                    tx.send(AppEvent::UpdateReasoningEffort(effort));
+                    tx.send(AppEvent::UpdateReasoningEffort(Some(effort)));
                 })];
                 items.push(SelectionItem {
                     name,
