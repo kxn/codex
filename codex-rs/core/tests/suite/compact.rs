@@ -5,11 +5,11 @@ use codex_core::ConversationManager;
 use codex_core::ModelProviderInfo;
 use codex_core::NewConversation;
 use codex_core::built_in_model_providers;
-use codex_core::protocol::ErrorEvent;
 use codex_core::protocol::EventMsg;
 use codex_core::protocol::InputItem;
 use codex_core::protocol::Op;
-use codex_core::rollout::recorder::{RolloutItem, RolloutLine};
+use codex_core::rollout::recorder::RolloutItem;
+use codex_core::rollout::recorder::RolloutLine;
 use codex_core::spawn::CODEX_SANDBOX_NETWORK_DISABLED_ENV_VAR;
 use core_test_support::load_default_config_for_test;
 use core_test_support::wait_for_event;
@@ -18,17 +18,11 @@ use tempfile::TempDir;
 use wiremock::BodyPrintLimit;
 use wiremock::Mock;
 use wiremock::MockServer;
-use wiremock::Request;
-use wiremock::Respond;
 use wiremock::ResponseTemplate;
 use wiremock::matchers::method;
 use wiremock::matchers::path;
 
 use pretty_assertions::assert_eq;
-use std::sync::Arc;
-use std::sync::Mutex;
-use std::sync::atomic::AtomicUsize;
-use std::sync::atomic::Ordering;
 
 // --- Test helpers -----------------------------------------------------------
 

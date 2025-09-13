@@ -62,7 +62,8 @@ pub struct TurnContextItem {
     pub approval_policy: AskForApproval,
     pub sandbox_policy: SandboxPolicy,
     pub model: String,
-    pub effort: ReasoningEffortConfig,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub effort: Option<ReasoningEffortConfig>,
     pub summary: ReasoningSummaryConfig,
 }
 

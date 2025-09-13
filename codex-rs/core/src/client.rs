@@ -73,7 +73,7 @@ pub struct ModelClient {
     client: reqwest::Client,
     provider: ModelProviderInfo,
     conversation_id: ConversationId,
-    effort: ReasoningEffortConfig,
+    effort: Option<ReasoningEffortConfig>,
     summary: ReasoningSummaryConfig,
 }
 

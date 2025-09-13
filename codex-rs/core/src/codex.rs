@@ -11,7 +11,6 @@ use std::time::Duration;
 use crate::AuthManager;
 use crate::client_common::REVIEW_PROMPT;
 use crate::event_mapping::map_response_item_to_event_messages;
-use crate::rollout::recorder::CompactedItem;
 use crate::rollout::recorder::RolloutItem;
 use crate::rollout::recorder::TurnContextItem;
 use async_channel::Receiver;
@@ -24,7 +23,6 @@ use codex_protocol::protocol::ConversationPathResponseEvent;
 use codex_protocol::protocol::TaskStartedEvent;
 use codex_protocol::protocol::TurnAbortReason;
 use codex_protocol::protocol::TurnAbortedEvent;
-use codex_protocol::protocol::TurnContextItem;
 use futures::prelude::*;
 use mcp_types::CallToolResult;
 use serde::Deserialize;
@@ -51,6 +49,7 @@ use crate::config::Config;
 use crate::config_types::ReasoningSummaryFormat;
 use crate::config_types::ShellEnvironmentPolicy;
 use crate::conversation_history::ConversationHistory;
+use crate::conversation_manager::InitialHistory;
 use crate::environment_context::EnvironmentContext;
 use crate::error::CodexErr;
 use crate::error::Result as CodexResult;
@@ -87,6 +86,7 @@ use crate::protocol::AgentReasoningSectionBreakEvent;
 use crate::protocol::ApplyPatchApprovalRequestEvent;
 use crate::protocol::AskForApproval;
 use crate::protocol::BackgroundEventEvent;
+use crate::protocol::EnteredReviewModeEvent;
 use crate::protocol::ErrorEvent;
 use crate::protocol::Event;
 use crate::protocol::EventMsg;
@@ -101,6 +101,7 @@ use crate::protocol::PatchApplyBeginEvent;
 use crate::protocol::PatchApplyEndEvent;
 use crate::protocol::ReviewDecision;
 use crate::protocol::ReviewOutputEvent;
+use crate::protocol::ReviewRequest;
 use crate::protocol::SandboxPolicy;
 use crate::protocol::SessionConfiguredEvent;
 use crate::protocol::StreamErrorEvent;
@@ -130,7 +131,6 @@ use codex_protocol::models::LocalShellAction;
 use codex_protocol::models::ResponseInputItem;
 use codex_protocol::models::ResponseItem;
 use codex_protocol::models::ShellToolCallParams;
-use codex_protocol::protocol::InitialHistory;
 
 mod compact;
 
@@ -1204,7 +1204,7 @@ async fn submission_loop(
                 };
 
                 // Effective reasoning settings
-                let effective_effort = effort.unwrap_or(prev.client.get_reasoning_effort());
+                let effective_effort = effort.unwrap_or_else(|| prev.client.get_reasoning_effort());
                 let effective_summary = summary.unwrap_or(prev.client.get_reasoning_summary());
 
                 // Build updated config for the client
@@ -1586,7 +1586,7 @@ async fn spawn_review_thread(
     // Announce entering review mode so UIs can switch modes.
     sess.send_event(Event {
         id: sub_id_for_event,
-        msg: EventMsg::EnteredReviewMode(review_request),
+        msg: EventMsg::EnteredReviewMode(EnteredReviewModeEvent {}),
     })
     .await;
 }
@@ -1634,6 +1634,8 @@ async fn run_task(
     // many turns, from the perspective of the user, it is a single turn.
     let mut turn_diff_tracker = TurnDiffTracker::new();
     let mut auto_compact_recently_attempted = false;
+    let is_review_mode = turn_context.is_review_mode;
+    let mut review_thread_history: Vec<ResponseItem> = Vec::new();
 
     loop {
         // Note that pending_input would be something like a message the user
@@ -1880,6 +1882,15 @@ async fn run_task(
         msg: EventMsg::TaskComplete(TaskCompleteEvent { last_agent_message }),
     };
     sess.send_event(event).await;
+}
+
+fn parse_review_output_event(text: &str) -> ReviewOutputEvent {
+    serde_json::from_str(text).unwrap_or_else(|_| ReviewOutputEvent {
+        findings: Vec::new(),
+        overall_correctness: String::new(),
+        overall_explanation: text.to_string(),
+        overall_confidence_score: 0.0,
+    })
 }
 
 async fn run_turn(
@@ -2150,94 +2161,6 @@ async fn try_run_turn(
             }
         }
     }
-}
-
-async fn run_compact_task(
-    sess: Arc<Session>,
-    turn_context: &TurnContext,
-    sub_id: String,
-    input: Vec<InputItem>,
-    compact_instructions: String,
-) {
-    let model_context_window = turn_context.client.get_model_context_window();
-    let start_event = Event {
-        id: sub_id.clone(),
-        msg: EventMsg::TaskStarted(TaskStartedEvent {
-            model_context_window,
-        }),
-    };
-    sess.send_event(start_event).await;
-
-    let initial_input_for_turn: ResponseInputItem = ResponseInputItem::from(input);
-    let turn_input: Vec<ResponseItem> =
-        sess.turn_input_with_history(vec![initial_input_for_turn.clone().into()]);
-
-    let prompt = Prompt {
-        input: turn_input,
-        tools: Vec::new(),
-        base_instructions_override: Some(compact_instructions.clone()),
-    };
-
-    let max_retries = turn_context.client.get_provider().stream_max_retries();
-    let mut retries = 0;
-
-    loop {
-        let attempt_result = drain_to_completed(&sess, turn_context, &sub_id, &prompt).await;
-
-        match attempt_result {
-            Ok(()) => break,
-            Err(CodexErr::Interrupted) => return,
-            Err(e) => {
-                if retries < max_retries {
-                    retries += 1;
-                    let delay = backoff(retries);
-                    sess.notify_stream_error(
-                        &sub_id,
-                        format!(
-                            "stream error: {e}; retrying {retries}/{max_retries} in {delay:?}…"
-                        ),
-                    )
-                    .await;
-                    tokio::time::sleep(delay).await;
-                    continue;
-                } else {
-                    let event = Event {
-                        id: sub_id.clone(),
-                        msg: EventMsg::Error(ErrorEvent {
-                            message: e.to_string(),
-                        }),
-                    };
-                    sess.send_event(event).await;
-                }
-            }
-        }
-    }
-
-    sess.remove_task(&sub_id);
-
-    let rollout_item = {
-        let mut state = sess.state.lock_unchecked();
-        state.history.keep_last_messages(1);
-        RolloutItem::Compacted(CompactedItem {
-            message: state.history.last_agent_message(),
-        })
-    };
-    sess.persist_rollout_items(&[rollout_item]).await;
-
-    let event = Event {
-        id: sub_id.clone(),
-        msg: EventMsg::AgentMessage(AgentMessageEvent {
-            message: "Compact task completed".to_string(),
-        }),
-    };
-    sess.send_event(event).await;
-    let event = Event {
-        id: sub_id.clone(),
-        msg: EventMsg::TaskComplete(TaskCompleteEvent {
-            last_agent_message: None,
-        }),
-    };
-    sess.send_event(event).await;
 }
 
 async fn handle_response_item(
@@ -3260,67 +3183,6 @@ pub(super) fn get_last_assistant_message_from_turn(responses: &[ResponseItem]) -
             None
         }
     })
-}
-
-async fn drain_to_completed(
-    sess: &Session,
-    turn_context: &TurnContext,
-    sub_id: &str,
-    prompt: &Prompt,
-) -> CodexResult<()> {
-    let rollout_item = RolloutItem::TurnContext(TurnContextItem {
-        cwd: turn_context.cwd.clone(),
-        approval_policy: turn_context.approval_policy,
-        sandbox_policy: turn_context.sandbox_policy.clone(),
-        model: turn_context.client.get_model(),
-        effort: turn_context.client.get_reasoning_effort(),
-        summary: turn_context.client.get_reasoning_summary(),
-    });
-    sess.persist_rollout_items(&[rollout_item]).await;
-    let mut stream = turn_context.client.clone().stream(prompt).await?;
-    loop {
-        let maybe_event = stream.next().await;
-        let Some(event) = maybe_event else {
-            return Err(CodexErr::Stream(
-                "stream closed before response.completed".into(),
-                None,
-            ));
-        };
-        match event {
-            Ok(ResponseEvent::OutputItemDone(item)) => {
-                // Record only to in-memory conversation history; avoid state snapshot.
-                let mut state = sess.state.lock_unchecked();
-                state.history.record_items(std::slice::from_ref(&item));
-            }
-            Ok(ResponseEvent::Completed {
-                response_id: _,
-                token_usage,
-            }) => {
-                let info = {
-                    let mut st = sess.state.lock_unchecked();
-                    let info = TokenUsageInfo::new_or_append(
-                        &st.token_info,
-                        &token_usage,
-                        turn_context.client.get_model_context_window(),
-                    );
-                    st.token_info = info.clone();
-                    info
-                };
-
-                sess.tx_event
-                    .send(Event {
-                        id: sub_id.to_string(),
-                        msg: EventMsg::TokenCount(crate::protocol::TokenCountEvent { info }),
-                    })
-                    .await
-                    .ok();
-
-                return Ok(());
-            }
-            Ok(_) => continue,
-            Err(e) => return Err(e),
-        }
-    }
 }
 
 fn convert_call_tool_result_to_function_call_output_payload(
