@@ -34,6 +34,14 @@ pub const ENVIRONMENT_CONTEXT_OPEN_TAG: &str = "<environment_context>";
 pub const ENVIRONMENT_CONTEXT_CLOSE_TAG: &str = "</environment_context>";
 pub const USER_MESSAGE_BEGIN: &str = "## My request for Codex:";
 
+fn starts_with_ignore_ascii_case(s: &str, prefix: &str) -> bool {
+    s.len() >= prefix.len() && s[..prefix.len()].eq_ignore_ascii_case(prefix)
+}
+
+fn ends_with_ignore_ascii_case(s: &str, suffix: &str) -> bool {
+    s.len() >= suffix.len() && s[s.len() - suffix.len()..].eq_ignore_ascii_case(suffix)
+}
+
 /// Submission Queue Entry - requests from user
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[cfg_attr(feature = "ts", derive(TS))]
@@ -178,6 +186,12 @@ pub enum Op {
 
     /// Request to shut down codex instance.
     Shutdown,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, TS)]
+pub struct ReviewRequest {
+    pub prompt: String,
+    pub user_facing_hint: String,
 }
 
 /// Determines the conditions under which the user is consulted to approve
@@ -433,6 +447,10 @@ pub enum EventMsg {
     /// Agent has completed all actions
     TaskComplete(TaskCompleteEvent),
 
+    EnteredReviewMode(EnteredReviewModeEvent),
+
+    ExitedReviewMode(Option<ReviewOutputEvent>),
+
     /// Usage update for the current session, including totals and last turn.
     /// Optional means unknown — UIs should not display when `None`.
     TokenCount(TokenCountEvent),
@@ -534,6 +552,9 @@ pub struct TaskStartedEvent {
     pub model_context_window: Option<u64>,
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, TS)]
+pub struct EnteredReviewModeEvent {}
+
 #[derive(Debug, Clone, Deserialize, Serialize, Default, TS)]
 pub struct TokenUsage {
     pub input_tokens: u64,
@@ -548,6 +569,35 @@ pub struct TokenUsageInfo {
     pub total_token_usage: TokenUsage,
     pub last_token_usage: TokenUsage,
     pub model_context_window: Option<u64>,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, TS)]
+pub struct ReviewLineRange {
+    pub start: u32,
+    pub end: u32,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq, TS)]
+pub struct ReviewCodeLocation {
+    pub absolute_file_path: PathBuf,
+    pub line_range: ReviewLineRange,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, TS)]
+pub struct ReviewFinding {
+    pub title: String,
+    pub body: String,
+    pub confidence_score: f32,
+    pub priority: u32,
+    pub code_location: ReviewCodeLocation,
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, TS)]
+pub struct ReviewOutputEvent {
+    pub findings: Vec<ReviewFinding>,
+    pub overall_correctness: String,
+    pub overall_explanation: String,
+    pub overall_confidence_score: f32,
 }
 
 impl TokenUsageInfo {
@@ -1073,6 +1123,7 @@ mod tests {
                 "model": "codex-mini-latest",
                 "history_log_id": 0,
                 "history_entry_count": 0,
+                "reasoning_effort": "medium",
                 "rollout_path": format!("{}", rollout_file.path().display()),
             }
         });
