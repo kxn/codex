@@ -1,3 +1,5 @@
+现在官方版本已经完全支持全自动，所以本repo存在的价值已经接近为0.将其 archive 掉
+
 <p align="center"><code>npm i -g @openai/codex</code><br />or <code>brew install codex</code></p>
 
 <p align="center"><strong>Codex CLI</strong> is a coding agent from OpenAI that runs locally on your computer.
